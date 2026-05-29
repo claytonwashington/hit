@@ -187,12 +187,18 @@ class HITHTTPRequestHandler(BaseHTTPRequestHandler):
                 song_remote = "None"
 
             try:
-                # Git status check
+                # Git status check - only care about modified tracked .als files
                 status_output = subprocess.check_output(
-                    ["git", "status", "--porcelain"],
+                    ["git", "status", "--porcelain", "-uno"],
                     cwd=song_dir, text=True
                 ).strip()
-                is_clean = not bool(status_output)
+                has_unsaved_als = False
+                for line in status_output.splitlines():
+                    cleaned_line = line.strip()
+                    if cleaned_line.endswith(".als") and not cleaned_line.startswith("??"):
+                        has_unsaved_als = True
+                        break
+                is_clean = not has_unsaved_als
             except Exception:
                 is_clean = True
 

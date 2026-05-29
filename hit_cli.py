@@ -204,11 +204,18 @@ def print_status():
             
             # Git status check
             status_output = subprocess.check_output(
-                ["git", "status", "--porcelain"],
+                ["git", "status", "--porcelain", "-uno"],
                 cwd=song_dir, text=True
             ).strip()
-            if status_output:
-                print(f"Uncommitted Changes: {YELLOW}Yes (Local changes pending sync){RESET}")
+            has_unsaved_als = False
+            for line in status_output.splitlines():
+                cleaned_line = line.strip()
+                if cleaned_line.endswith(".als") and not cleaned_line.startswith("??"):
+                    has_unsaved_als = True
+                    break
+            
+            if has_unsaved_als:
+                print(f"Uncommitted Changes: {YELLOW}Yes (Unsaved Ableton set changes pending sync){RESET}")
             else:
                 print(f"Local State: {GREEN}Clean & In Sync{RESET}")
                 

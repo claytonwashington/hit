@@ -22,7 +22,25 @@ To prevent edit conflicts and ensure you never overwrite each other's work, HIT 
 
 ---
 
-## 2. Command Line Interface (CLI)
+## 2. Visual Web Dashboard (GUI)
+
+In addition to the command line, HIT includes a premium visual Web GUI to monitor statuses, switch branches, create checkpoints, import remote sets, and configure settings.
+
+To launch the dashboard:
+```bash
+hit gui
+```
+*This starts the local web server on port `8000` (or dynamically resolves an open port if 8000 is occupied) and automatically opens your default web browser.*
+
+### Key Features:
+* **Interactive Tooltips**: Hover over the `ⓘ` indicator icon next to any section header to reveal helpful explanations and tutorials.
+* **Collapsible Quickstart Guide**: A simple step-by-step pane at the top of the dashboard. Click the header button to collapse or expand it; your visibility preference will be saved locally.
+* **Visual Timeline**: A real-time updating vertical log showing recent saves and checkpoints, color-coded by collaborator.
+* **Collaborator Imports**: Browse available collaborator branches and import them as side-files (conflict-free) for easy track merging in Ableton Live.
+
+---
+
+## 3. Command Line Interface (CLI)
 
 The `hit` command utility makes managing your sessions simple.
 
@@ -40,11 +58,12 @@ Commands:
   branch [name]    List collaboration branches, or checkout/create a new branch
   checkpoint       Label the last save and optionally tag it as a new version
   config           View or update user and git configurations
+  gui              Launch the local Web GUI dashboard
 ```
 
 ---
 
-## 3. Directory Structure
+## 4. Directory Structure
 
 ```
 hit/
@@ -55,6 +74,7 @@ hit/
 ├── VST_SYNC_SPEC.md             # Third-party VST/AU plugin sync specification
 ├── hit_daemon.py                # Core background sync service
 ├── hit_cli.py                   # Command-line interface implementation
+├── hit_gui.py                   # Web GUI server backend
 └── hit_sync/
     ├── config.py                # Environmental configs
     ├── watcher.py               # Filesystem watcher (watchdog)
@@ -65,7 +85,7 @@ hit/
 
 ---
 
-## 4. Setup Instructions
+## 5. Setup Instructions
 
 ### 1. Install Dependencies
 Make sure you have Python 3 and pip installed, then run:
@@ -113,9 +133,7 @@ hit start
 
 ---
 
----
-
-## 5. Song Collaboration Playbook (Step-by-Step)
+## 6. Song Collaboration Playbook (Step-by-Step)
 
 Here is the exact sequence of steps to create and share a collaborative song.
 
@@ -162,7 +180,7 @@ Once you send them the clone repository link:
 
 ---
 
-## 5. Checkpoints and Version Tagging
+## 7. Checkpoints and Version Tagging
 
 By default, the HIT daemon automatically commits every Ableton save with a generic `[HIT Sync] ...` message. If you want to label a specific state (e.g. you finished a mix or want to mark a milestone), you can create a **Checkpoint**:
 
@@ -179,7 +197,7 @@ hit checkpoint
 
 ---
 
-## 6. How to Collaborate (Sharing Your 35TB Google Drive)
+## 8. How to Collaborate (Sharing Your 35TB Google Drive)
 
 HIT supports collaborating across different Google Accounts using standard **Google Drive Folder Sharing**:
 
