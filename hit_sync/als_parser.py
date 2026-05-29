@@ -67,7 +67,7 @@ def make_paths_relative(xml_content, project_dir):
                     logging.info(f"Normalized path to relative: {original_path} -> {rel_path}")
 
         if modified:
-            return ET.tostring(root, encoding="utf-8"), True
+            return b'<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(root, encoding="utf-8"), True
     except Exception as e:
         logging.error(f"Error normalizing XML paths: {e}")
     

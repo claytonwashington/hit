@@ -62,6 +62,23 @@ class AbletonProjectHandler(FileSystemEventHandler):
         # Filter: Only trigger on .als files
         if not file_path.endswith(".als"):
             return
+
+        # Filter: Only trigger on the active project's main .als file
+        try:
+            import json
+            from hit_sync.config import MUSIC_DIR, SONGS_JSON_PATH
+            if os.path.exists(SONGS_JSON_PATH):
+                with open(SONGS_JSON_PATH, "r") as f:
+                    song_data = json.load(f)
+                active_proj = song_data.get("active_project")
+                if active_proj and "songs" in song_data and active_proj in song_data["songs"]:
+                    relative_als = song_data["songs"][active_proj].get("path")
+                    if relative_als:
+                        active_als_path = os.path.abspath(os.path.join(MUSIC_DIR, relative_als))
+                        if os.path.abspath(file_path) != active_als_path:
+                            return
+        except Exception as e:
+            logging.error(f"Error filtering active project .als in watcher: {e}")
             
         # Ignore Backup directories
         path_parts = file_path.split(os.sep)

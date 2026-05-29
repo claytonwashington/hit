@@ -27,10 +27,7 @@ class HITAbletonSyncDaemon:
         
         logging.info("Initializing HIT Sync Daemon...")
         
-        # 1. Initialize Git Manager
-        self.git_manager = GitSyncManager(self.music_dir)
-        
-        # 2. Initialize Google Drive Manager
+        # 1. Initialize Google Drive Manager
         try:
             self.drive_manager = GoogleDriveSyncManager(GOOGLE_CREDENTIALS_PATH)
             # Create master project folder on Google Drive
@@ -41,12 +38,33 @@ class HITAbletonSyncDaemon:
             self.drive_manager = None
             self.drive_master_folder_id = None
             
-        # 3. Setup File System Watcher
+        # 2. Setup File System Watcher
         self.watcher = AbletonProjectWatcher(
             watch_dir=self.music_dir,
             on_changed_callback=self.handle_local_change,
             debounce_delay=DEBOUNCE_DELAY_SECONDS
         )
+
+    def get_active_project_dir(self):
+        """Read the currently active project name from songs.json and resolve its path."""
+        from hit_sync.config import SONGS_JSON_PATH
+        import json
+        if os.path.exists(SONGS_JSON_PATH):
+            try:
+                with open(SONGS_JSON_PATH, "r") as f:
+                    song_data = json.load(f)
+                    active_proj = song_data.get("active_project")
+                    if active_proj:
+                        proj_path = os.path.join(self.music_dir, active_proj)
+                        if os.path.isdir(proj_path):
+                            return proj_path
+                        # Also check if it's named with " Project" suffix
+                        for d in os.listdir(self.music_dir):
+                            if d.lower() == active_proj.lower() or d.lower().replace(" project", "") == active_proj.lower():
+                                return os.path.join(self.music_dir, d)
+            except Exception as e:
+                logging.error(f"Error reading active project from songs.json: {e}")
+        return None
 
     def handle_local_change(self, file_path):
         """Callback when an .als file is modified locally."""
@@ -92,29 +110,42 @@ class HITAbletonSyncDaemon:
             compress_als(normalized_xml, file_path)
             logging.info("Successfully re-wrote .als with normalized relative paths.")
 
-        # Commit and push project structure to Git
-        commit_message = f"[HIT Sync] {self.username} updated project: {os.path.basename(file_path)}"
-        if self.git_manager.commit_file(file_path, commit_message):
-            self.git_manager.push()
+        # Commit and push project structure to Git (target the active song repository)
+        if os.path.exists(os.path.join(project_dir, ".git")):
+            git_manager = GitSyncManager(project_dir)
+            commit_message = f"[HIT Sync] {self.username} updated project: {os.path.basename(file_path)}"
+            if git_manager.commit_file(file_path, commit_message):
+                git_manager.push()
+        else:
+            logging.warning(f"No Git repository found in {project_dir}. Skipping Git commit/push.")
 
     def sync_incoming_updates(self):
-        """Pull incoming changes from Git and download missing audio files from Drive."""
-        logging.info("Checking for incoming updates...")
+        """Pull incoming changes from Git for the active project and download missing audio files from Drive."""
+        active_proj_dir = self.get_active_project_dir()
+        if not active_proj_dir:
+            return
+            
+        if not os.path.exists(os.path.join(active_proj_dir, ".git")):
+            return
+            
+        logging.info(f"Checking for incoming updates in active project: {os.path.basename(active_proj_dir)}...")
+        
+        # Initialize Git manager for the active project repo
+        git_manager = GitSyncManager(active_proj_dir)
         
         # Pull Git repository updates
-        success, output = self.git_manager.pull()
+        success, output = git_manager.pull()
         if not success:
-            logging.error("Failed to pull from Git remote.")
+            logging.error(f"Failed to pull from remote for active project: {os.path.basename(active_proj_dir)}")
             return
 
         if "Already up to date" in output or "Already up-to-date" in output:
-            logging.info("Git repository is up to date.")
             return
 
         logging.info("Received project updates! Scanning for missing samples...")
         
-        # Scan all .als files to verify we have all referenced audio files
-        for root, dirs, files in os.walk(self.music_dir):
+        # Scan all .als files inside the active project folder
+        for root, dirs, files in os.walk(active_proj_dir):
             if "Backup" in root.split(os.sep):
                 continue
             for file in files:
@@ -140,7 +171,6 @@ class HITAbletonSyncDaemon:
                         
                         # Sync missing samples
                         for sample in sample_paths:
-                            # We only sync samples inside the project folder
                             if not os.path.isabs(sample) or sample.startswith(os.path.abspath(project_dir)):
                                 abs_sample_path = os.path.abspath(os.path.join(project_dir, sample))
                                 if not os.path.exists(abs_sample_path):

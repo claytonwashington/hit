@@ -51,7 +51,13 @@ You are the AI copilot for **HIT**, a collaboration sync suite for Ableton Live 
 
 ---
 
-## Sync Daemon Specifications
+## Sync Daemon
+
+1. **Music Projects Root**
+   - **Path**: [/Users/claywashington/Desktop/Music](file:///Users/claywashington/Desktop/Music)
+   - **Conventions**:
+     - All songs are stored in separate project directories (e.g., `[Song Name] Project/`).
+     - **Git Repository Organization**: Each song has its own independent Git repository initialized inside its project folder (e.g., `~/Desktop/Music/[Song Name] Project/`). The HIT daemon reads `songs.json` to identify the active project and runs Git commands (pull, push, lock) inside that project's folder. The code repository itself (`hit/`) is hosted independently.
 
 ### Watcher (`hit_sync/watcher.py`)
 - Must watch `/Users/claywashington/Desktop/Music` (or current active song directory).

@@ -2,6 +2,9 @@
 
 This document details the interface, commands, and operations of the **`hit` CLI tool** for the HIT Ableton Live Sync suite. It is designed to guide AI agents in automating and monitoring the sync daemon.
 
+> [!TIP]
+> For detailed step-by-step examples of real-world collaboration workflows (including starting projects, branching, locking, checkpointing, viewing history, and importing sets), refer to [EXAMPLES.md](file:///Users/claywashington/hit/EXAMPLES.md).
+
 ---
 
 ## 1. Environment & Setup
@@ -63,7 +66,7 @@ AI agents should use these commands to manage the daemon state and track coopera
   ```bash
   hit branch [branch-name]
   ```
-  *Switches branches or creates a new branch named `collab/[username]-[branch-name]` if it does not exist.*
+  *Switches branches or creates a new branch. It automatically prefixes the branch name with `collab/[username]-`. However, if the specified `[branch-name]` already starts with `[username]-`, it only prepends `collab/` (e.g. `hit branch claytonwashington-vox` becomes `collab/claytonwashington-vox`), preventing double-prefixing.*
 
 * **Lock Project (Branch Lock)**:
   ```bash
@@ -90,6 +93,18 @@ AI agents should use these commands to manage the daemon state and track coopera
 ---
 
 ## 3. Automation Sequences (Playbooks)
+
+### Creating a New Collaborative Song (You):
+1. Instruct the user to save their Ableton set inside `~/Desktop/Music/[ProjectName]`.
+2. Initialize and publish the repository to GitHub: `hit create "[ProjectName]"`
+3. Set the project active: `python3 /Users/claywashington/Desktop/Music/song_manager.py active "[ProjectName]"`
+4. Start the background sync daemon: `hit start`
+5. Report the generated clone link (`hit clone git@github.com:...`) to the user to send to their friends.
+
+### Joining an Existing Collaborative Song (Collaborator):
+1. Clone the project using the shared URL: `hit clone [GitRemoteUrl]`
+2. Set the project active: `songs active "[ProjectName]"`
+3. Start the daemon: `hit start`
 
 ### Pulling Collaborator Changes Safely:
 1. Stop the daemon: `hit stop`

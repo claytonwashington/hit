@@ -8,7 +8,7 @@ class GitSyncManager:
     def __init__(self, repo_path):
         self.repo_path = repo_path
 
-    def _run_git(self, args):
+    def _run_git(self, args, log_on_error=True):
         """Helper to run git commands in the repository directory."""
         try:
             cmd = ["git"] + args
@@ -21,8 +21,9 @@ class GitSyncManager:
             )
             return result.stdout.strip(), True
         except subprocess.CalledProcessError as e:
-            logging.error(f"Git command failed: {' '.join(cmd)}")
-            logging.error(f"Error output: {e.stderr}")
+            if log_on_error:
+                logging.error(f"Git command failed: {' '.join(cmd)}")
+                logging.error(f"Error output: {e.stderr}")
             return e.stderr, False
 
     def is_repo_clean(self):
@@ -39,7 +40,15 @@ class GitSyncManager:
 
     def pull(self):
         logging.info("Pulling latest changes from remote...")
-        output, success = self._run_git(["pull", "origin", self.get_current_branch()])
+        branch = self.get_current_branch()
+        
+        # Check if remote branch exists before pulling
+        _, exists = self._run_git(["ls-remote", "--exit-code", "--heads", "origin", branch], log_on_error=False)
+        if not exists:
+            logging.info(f"Branch '{branch}' does not exist on remote 'origin' yet. Skipping pull.")
+            return True, "Already up to date"
+            
+        output, success = self._run_git(["pull", "origin", branch])
         return success, output
 
     def push(self):
