@@ -23,7 +23,8 @@ def load_local_config():
     default_cfg = {
         "username": "claytonwashington",
         "drive_folder": "HIT_DAW_Shared_Projects",
-        "music_dir": os.path.expanduser("~/Desktop/Music")
+        "music_dir": os.path.expanduser("~/Desktop/Music"),
+        "friends": ["nik"]
     }
     if os.path.exists(CONFIG_FILE):
         try:
@@ -377,7 +378,7 @@ def manage_config(args):
     cfg = load_local_config()
     
     # Check if we should run the interactive wizard (no flags provided)
-    if not (args.username or args.drive_folder):
+    if not (args.username or args.drive_folder or args.friends):
         print(f"{BOLD}HIT Configuration Wizard{RESET}")
         print("Press Enter to keep the current value shown in brackets.\n")
         
@@ -395,6 +396,13 @@ def manage_config(args):
             cfg["drive_folder"] = folder_input
             print(f"Google Drive folder updated to: {GREEN}{folder_input}{RESET}")
             
+        # 3. Friends List
+        current_friends = ", ".join(cfg.get("friends", ["nik"]))
+        friends_input = input(f"Collaborator Crew GitHub Usernames (Comma-separated) [{current_friends}]: ").strip()
+        if friends_input:
+            cfg["friends"] = [f.strip() for f in friends_input.split(",") if f.strip()]
+            print(f"Collaborator crew GitHub usernames updated to: {GREEN}{', '.join(cfg['friends'])}{RESET}")
+            
         save_local_config(cfg)
         print(f"\n{GREEN}✓ Configurations saved successfully!{RESET}")
     else:
@@ -407,11 +415,16 @@ def manage_config(args):
             cfg["drive_folder"] = args.drive_folder
             print(f"Google Drive folder updated to: {GREEN}{args.drive_folder}{RESET}")
             
+        if args.friends:
+            cfg["friends"] = [f.strip() for f in args.friends.split(",") if f.strip()]
+            print(f"Collaborator crew updated to: {GREEN}{', '.join(cfg['friends'])}{RESET}")
+            
         save_local_config(cfg)
     
     print(f"\n{BOLD}Current Configurations:{RESET}")
     print(f"  Username:     {cfg.get('username')}")
     print(f"  Drive Folder: {cfg.get('drive_folder')}")
+    print(f"  Crew:         {', '.join(cfg.get('friends', []))}")
 
 def manage_checkpoint(message=None, tag=None):
     """Amend the last auto-saved commit with a custom message and optionally tag the commit."""
@@ -901,6 +914,7 @@ def main():
     config_parser = subparsers.add_parser("config", help="Manage settings")
     config_parser.add_argument("--username", help="Set collaborator username")
     config_parser.add_argument("--drive-folder", help="Set custom Google Drive shared folder name")
+    config_parser.add_argument("--friends", help="Set collaborator crew GitHub usernames (comma-separated)")
     
     # Clone and Create controls
     clone_parser = subparsers.add_parser("clone", help="Clone a song repository and register it")

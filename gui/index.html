@@ -50,6 +50,10 @@
                     <span class="label">Lock State:</span>
                     <span id="lock-badge" class="lock-badge unlocked">🔓 Unlocked</span>
                 </div>
+                <div class="collab-share-section" id="collab-share-container" style="display: none;">
+                    <span class="label">Quick Share with Crew:</span>
+                    <div id="friend-buttons-bank" class="friend-buttons-bank"></div>
+                </div>
                 <div class="card-actions">
                     <button id="lock-btn" class="btn btn-primary" disabled>Lock Project</button>
                     <button id="sync-btn" class="btn btn-secondary" disabled>Sync Now</button>
@@ -76,6 +80,10 @@
                     <div class="form-group">
                         <label for="cfg-drive">Google Drive Shared Folder</label>
                         <input type="text" id="cfg-drive" placeholder="HIT_DAW_Shared_Projects" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="cfg-friends">Collaborator Crew (GitHub Usernames, Comma-separated)</label>
+                        <input type="text" id="cfg-friends" placeholder="e.g. nik, dave, sarah">
                     </div>
                     <div class="form-group">
                         <label for="cfg-music-dir">Music Projects Folder</label>

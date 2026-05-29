@@ -44,6 +44,44 @@ def run_cli_capture(func, *args, **kwargs):
             success = False
     return success, strip_ansi(f.getvalue().strip())
 
+def add_collaborator(song_dir, collaborator_username):
+    try:
+        remote_url = subprocess.check_output(
+            ["git", "remote", "get-url", "origin"],
+            cwd=song_dir, stderr=subprocess.DEVNULL, text=True
+        ).strip()
+    except Exception:
+        return False, "No remote origin configured for this song."
+        
+    if "github.com" not in remote_url:
+        return False, f"Remote URL is not a GitHub repository: {remote_url}"
+        
+    try:
+        parts = remote_url.split("github.com")[-1].lstrip(":/").replace(".git", "").split("/")
+        owner = parts[0]
+        repo = parts[1]
+    except Exception:
+        return False, f"Could not parse GitHub owner/repo from URL: {remote_url}"
+        
+    try:
+        res = subprocess.run([
+            "/opt/homebrew/bin/gh", "api", "-X", "PUT", 
+            f"/repos/{owner}/{repo}/collaborators/{collaborator_username}"
+        ], capture_output=True, text=True)
+        
+        if res.returncode == 0:
+            return True, f"Invitation sent to {collaborator_username} successfully!"
+        else:
+            # Parse error message from JSON response if present
+            try:
+                err_data = json.loads(res.stdout or res.stderr)
+                msg = err_data.get("message", "GitHub API error")
+                return False, f"GitHub error: {msg}"
+            except Exception:
+                return False, f"GitHub API error: {res.stderr or res.stdout}"
+    except Exception as e:
+        return False, f"Failed to run gh CLI: {e}"
+
 class HITHTTPRequestHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         # Mute default HTTP logging to stdout to keep console clean
@@ -125,6 +163,9 @@ class HITHTTPRequestHandler(BaseHTTPRequestHandler):
         # API: Initialize Git Repo for Song
         elif self.path == "/api/songs/initialize":
             self._handle_post_song_init(data)
+        # API: Share Song with Collaborator
+        elif self.path == "/api/songs/share":
+            self._handle_post_song_share(data)
         # API: Save Config
         elif self.path == "/api/config":
             self._handle_post_config(data)
@@ -225,6 +266,7 @@ class HITHTTPRequestHandler(BaseHTTPRequestHandler):
         response = {
             "daemon_running": running,
             "username": cfg.get("username"),
+            "friends": cfg.get("friends", ["nik"]),
             "drive_folder": cfg.get("drive_folder"),
             "drive_sync_healthy": drive_sync_healthy,
             "music_dir": cfg.get("music_dir"),
@@ -469,6 +511,46 @@ class HITHTTPRequestHandler(BaseHTTPRequestHandler):
             "output": output
         }).encode('utf-8'))
 
+    def _handle_post_song_share(self, data):
+        song_name = data.get("name")
+        collaborator = data.get("collaborator")
+        
+        if not song_name or not collaborator:
+            self._set_headers(status=400)
+            self.wfile.write(json.dumps({"error": "Song name and collaborator username are required"}).encode('utf-8'))
+            return
+            
+        # Get active music directory
+        cfg = hit_cli.load_local_config()
+        music_dir = cfg.get("music_dir", os.path.expanduser("~/Desktop/Music"))
+        songs_json_path = os.path.join(music_dir, "songs.json")
+        
+        songs_data = {"songs": {}}
+        if os.path.exists(songs_json_path):
+            try:
+                with open(songs_json_path, "r") as f:
+                    songs_data = json.load(f)
+            except Exception:
+                pass
+                
+        song = songs_data.get("songs", {}).get(song_name)
+        if not song:
+            self._set_headers(status=404)
+            self.wfile.write(json.dumps({"error": f"Song '{song_name}' not found in catalog"}).encode('utf-8'))
+            return
+            
+        relative_path = song.get("path")
+        project_folder = os.path.dirname(relative_path) if relative_path else f"{song_name} Project"
+        song_dir = os.path.join(music_dir, project_folder)
+        
+        success, output = add_collaborator(song_dir, collaborator)
+        
+        self._set_headers()
+        self.wfile.write(json.dumps({
+            "success": success,
+            "output": output
+        }).encode('utf-8'))
+
     def _handle_get_config(self):
         cfg = hit_cli.load_local_config()
         self._set_headers()
@@ -608,6 +690,8 @@ class HITHTTPRequestHandler(BaseHTTPRequestHandler):
             cfg["drive_folder"] = data["drive_folder"]
         if "music_dir" in data:
             cfg["music_dir"] = data["music_dir"]
+        if "friends" in data:
+            cfg["friends"] = data["friends"]
             
         hit_cli.save_local_config(cfg)
         self._set_headers()

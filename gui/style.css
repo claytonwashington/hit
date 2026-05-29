@@ -1001,3 +1001,33 @@ input[disabled], select[disabled] {
     border: 1px solid rgba(45, 226, 123, 0.2);
 }
 
+/* Quick Share with Crew Section */
+.collab-share-section {
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    padding-top: 0.8rem;
+    margin-top: 0.3rem;
+}
+
+.friend-buttons-bank {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-top: 0.5rem;
+}
+
+.share-friend-btn {
+    padding: 0.35rem 0.7rem;
+    font-size: 0.75rem;
+    border-radius: 6px;
+    background-color: rgba(0, 216, 246, 0.03);
+    border: 1px solid rgba(0, 216, 246, 0.15);
+    color: var(--accent-cyan);
+    transition: all var(--transition-speed) ease;
+}
+
+.share-friend-btn:hover {
+    background-color: var(--accent-cyan-glow);
+    border-color: var(--accent-cyan);
+    color: var(--text-primary);
+}
+

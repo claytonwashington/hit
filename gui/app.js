@@ -50,7 +50,10 @@ const dom = {
     toastContainer: document.getElementById("toast-container"),
     cfgMusicDir: document.getElementById("cfg-music-dir"),
     quickstartToggle: document.getElementById("quickstart-toggle"),
-    quickstartBody: document.getElementById("quickstart-body")
+    quickstartBody: document.getElementById("quickstart-body"),
+    cfgFriends: document.getElementById("cfg-friends"),
+    collabShareContainer: document.getElementById("collab-share-container"),
+    friendButtonsBank: document.getElementById("friend-buttons-bank")
 };
 
 // Toast Notifications Helper
@@ -169,6 +172,45 @@ async function fetchStatus() {
             dom.lockBadge.textContent = "🔓 Unlocked";
             dom.lockBtn.textContent = "Lock Project";
             dom.lockBtn.className = "btn btn-primary";
+        }
+
+        // Render Quick Share with Crew buttons
+        if (state.activeSong && state.activeSong !== "None" && state.hasGit) {
+            dom.collabShareContainer.style.display = "block";
+            const friends = data.friends || [];
+            if (friends.length === 0) {
+                dom.friendButtonsBank.innerHTML = `<small class="helper-text">Add friends in Global Settings bank</small>`;
+            } else {
+                dom.friendButtonsBank.innerHTML = friends.map(friend => 
+                    `<button class="btn btn-sm btn-outline share-friend-btn" data-username="${friend}">+ ${friend}</button>`
+                ).join("");
+                
+                // Wire click handlers for quick sharing
+                document.querySelectorAll(".share-friend-btn").forEach(btn => {
+                    btn.addEventListener("click", async (e) => {
+                        e.stopPropagation();
+                        const friend = e.currentTarget.getAttribute("data-username");
+                        const originalText = btn.textContent;
+                        
+                        btn.disabled = true;
+                        btn.textContent = "Sharing...";
+                        showToast(`Inviting ${friend} to '${state.activeSong}' repo...`, "info");
+                        
+                        const res = await apiCall("/api/songs/share", "POST", { name: state.activeSong, collaborator: friend });
+                        
+                        btn.disabled = false;
+                        btn.textContent = originalText;
+                        
+                        if (res && res.success) {
+                            showToast(res.output, "success");
+                        } else {
+                            showToast(res ? res.output : "Failed to invite collaborator", "error");
+                        }
+                    });
+                });
+            }
+        } else {
+            dom.collabShareContainer.style.display = "none";
         }
     } else {
         dom.songTitle.textContent = "No Song Active";
@@ -407,6 +449,7 @@ async function fetchConfig() {
     dom.cfgUsername.value = config.username || "";
     dom.cfgDrive.value = config.drive_folder || "";
     dom.cfgMusicDir.value = config.music_dir || "";
+    dom.cfgFriends.value = (config.friends || []).join(", ");
 }
 
 // --- Event Listeners Setup ---
@@ -522,7 +565,8 @@ dom.configForm.addEventListener("submit", async (e) => {
     const payload = {
         username: dom.cfgUsername.value.trim(),
         drive_folder: dom.cfgDrive.value.trim(),
-        music_dir: dom.cfgMusicDir.value.trim()
+        music_dir: dom.cfgMusicDir.value.trim(),
+        friends: dom.cfgFriends.value.split(",").map(f => f.trim()).filter(f => f)
     };
     
     const res = await apiCall("/api/config", "POST", payload);
