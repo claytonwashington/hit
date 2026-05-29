@@ -23,7 +23,8 @@ def load_local_config():
     default_cfg = {
         "username": "claytonwashington",
         "remote": "",
-        "drive_folder": "HIT_DAW_Shared_Projects"
+        "drive_folder": "HIT_DAW_Shared_Projects",
+        "music_dir": os.path.expanduser("~/Desktop/Music")
     }
     if os.path.exists(CONFIG_FILE):
         try:
@@ -746,6 +747,32 @@ def manage_import(target):
     print("4. You will see all of your collaborator's tracks, groups, and master chain listed.")
     print("5. Drag and drop any track directly into your current project to merge their work conflict-free!")
 
+def manage_gui():
+    """Launch the local HIT Web GUI server and open it in the default browser."""
+    import webbrowser
+    import time
+    import threading
+    from hit_gui import start_server, PORT
+    
+    print(f"\n🌐 {BOLD}Starting HIT Ableton Sync Web GUI...{RESET}")
+    print(f"Server is running on: {CYAN}http://localhost:{PORT}{RESET}")
+    print(f"Press {YELLOW}Ctrl+C{RESET} in this terminal to shut down the GUI server.\n")
+
+    # Start the server in a daemon thread so it runs in background
+    t = threading.Thread(target=start_server, daemon=True)
+    t.start()
+
+    # Wait 0.5 seconds for server socket to bind, then open browser
+    time.sleep(0.5)
+    webbrowser.open(f"http://localhost:{PORT}")
+
+    # Keep the main thread alive so the server doesn't exit immediately
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print(f"\n🛑 Shutting down HIT Web GUI server...")
+
 def clone_project(git_url):
     """Clone a collaboration song repository into ~/Desktop/Music and configure its Ableton settings."""
     from hit_sync.config import MUSIC_DIR
@@ -903,6 +930,9 @@ def main():
     import_parser = subparsers.add_parser("import", help="Import collaborator branch/user .als file as a conflict-free side-file")
     import_parser.add_argument("target", help="Collaborator name or branch to import (e.g., nik, collab/nik-vox)")
 
+    # GUI controls
+    subparsers.add_parser("gui", help="Launch the local Web GUI dashboard")
+
     args = parser.parse_args()
     
     if args.command == "start":
@@ -932,6 +962,8 @@ def main():
         manage_history(args.count)
     elif args.command == "import":
         manage_import(args.target)
+    elif args.command == "gui":
+        manage_gui()
     else:
         parser.print_help()
 

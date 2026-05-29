@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HIT Ableton Sync Control Center</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="glow-backdrop"></div>
+    
+    <header class="app-header">
+        <div class="logo-container">
+            <span class="logo-icon">🎼</span>
+            <h1>HIT <span class="accent-text">Sync Suite</span></h1>
+        </div>
+        <div class="daemon-quick-status">
+            <span class="status-label">Google Drive:</span>
+            <div id="drive-status-badge" class="status-badge stopped">
+                <span class="pulse-dot"></span>
+                <span id="drive-status-text">OFFLINE</span>
+            </div>
+            <span class="status-label">Daemon:</span>
+            <div id="quick-status-badge" class="status-badge stopped">
+                <span class="pulse-dot"></span>
+                <span id="quick-status-text">STOPPED</span>
+            </div>
+            <button id="quick-toggle-btn" class="btn btn-sm btn-outline">Toggle</button>
+        </div>
+    </header>
+
+    <main class="dashboard-grid">
+        <!-- LEFT COLUMN: Projects & Settings -->
+        <section class="grid-col col-left">
+            <!-- Active Song Card -->
+            <div class="card glass-panel" id="active-song-card">
+                <h2>Active Song <span class="tooltip-icon" data-tooltip="Shows the currently active Ableton Live project. Use Lock/Unlock to manage editing rights, and Sync to force updates.">ⓘ</span></h2>
+                <div class="active-song-details">
+                    <h3 id="song-title">None Set</h3>
+                    <p class="song-path" id="song-path-text">Select a project below to begin</p>
+                </div>
+                <div class="branch-status">
+                    <span class="label">Branch:</span>
+                    <span id="active-branch-name" class="branch-badge">None</span>
+                </div>
+                <div class="lock-status-container">
+                    <span class="label">Lock State:</span>
+                    <span id="lock-badge" class="lock-badge unlocked">🔓 Unlocked</span>
+                </div>
+                <div class="card-actions">
+                    <button id="lock-btn" class="btn btn-primary" disabled>Lock Project</button>
+                    <button id="sync-btn" class="btn btn-secondary" disabled>Sync Now</button>
+                </div>
+            </div>
+
+            <!-- Song Manager Catalog -->
+            <div class="card glass-panel">
+                <h2>Songs Catalog <span class="tooltip-icon" data-tooltip="Lists registered Ableton project folders. Click any song to set it active and restart the file watcher.">ⓘ</span></h2>
+                <p class="panel-desc">Switch between active Ableton songs to sync</p>
+                <div id="songs-list" class="songs-list-container">
+                    <p class="loading">Loading songs catalog...</p>
+                </div>
+            </div>
+
+            <!-- Configuration Card -->
+            <div class="card glass-panel">
+                <h2>Global Settings <span class="tooltip-icon" data-tooltip="Configure your collaborator name, GitHub origin URL, shared Google Drive folder, and Ableton projects path.">ⓘ</span></h2>
+                <form id="config-form" class="settings-form">
+                    <div class="form-group">
+                        <label for="cfg-username">Collaborator Name</label>
+                        <input type="text" id="cfg-username" placeholder="e.g. clay" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="cfg-remote">Global Git Remote (Origin)</label>
+                        <input type="text" id="cfg-remote" placeholder="git@github.com:..." required>
+                    </div>
+                    <div class="form-group">
+                        <label for="cfg-drive">Google Drive Shared Folder</label>
+                        <input type="text" id="cfg-drive" placeholder="HIT_DAW_Shared_Projects" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="cfg-music-dir">Music Projects Folder</label>
+                        <input type="text" id="cfg-music-dir" placeholder="e.g. ~/Desktop/Music" required>
+                    </div>
+                    <button type="submit" class="btn btn-secondary btn-block">Save Configuration</button>
+                </form>
+            </div>
+        </section>
+
+        <!-- MIDDLE COLUMN: Actions & Checkpoints -->
+        <section class="grid-col col-middle">
+            <!-- Quickstart Card -->
+            <div class="card glass-panel quickstart-card">
+                <div class="quickstart-header">
+                    <h2>⚡ Quickstart Guide</h2>
+                    <button id="quickstart-toggle" class="btn btn-sm btn-outline">Collapse</button>
+                </div>
+                <div id="quickstart-body" class="quickstart-body">
+                    <ul class="quickstart-steps">
+                        <li><strong>1. Active Song</strong>: Select a folder in the **Songs Catalog** to watch.</li>
+                        <li><strong>2. Acquire Lock</strong>: Click **Lock Project** before editing to secure the branch.</li>
+                        <li><strong>3. Edit & Save</strong>: Work in Ableton Live. Every save (`Cmd+S`) is auto-synced.</li>
+                        <li><strong>4. Release Lock</strong>: Click **Unlock Project** when done so others can edit.</li>
+                        <li><strong>5. Import & Merge</strong>: Click **Import Tracks** next to a collaborator's branch to drag-and-drop their work.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Branch Switcher -->
+            <div class="card glass-panel">
+                <h2>Collaboration Branches <span class="tooltip-icon" data-tooltip="Checkout existing collaborator branches or create new namespaced branches (collab/username-branch) to work on.">ⓘ</span></h2>
+                <p class="panel-desc">Switch branches or create a new one to start working</p>
+                <div class="branch-controls">
+                    <div class="form-group">
+                        <label for="branch-selector">Active Branches</label>
+                        <div class="select-wrapper">
+                            <select id="branch-selector" disabled>
+                                <option value="">Loading branches...</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button id="switch-branch-btn" class="btn btn-primary btn-block" disabled>Checkout Branch</button>
+                    
+                    <div class="divider"><span>OR</span></div>
+                    
+                    <div class="form-group">
+                        <label for="new-branch-name">Create New Branch</label>
+                        <div class="input-with-button">
+                            <input type="text" id="new-branch-name" placeholder="e.g. bassline-ideas" disabled>
+                            <button id="create-branch-btn" class="btn btn-secondary" disabled>Create</button>
+                        </div>
+                        <small class="helper-text">Automatically namespaces under collab/yourname-</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Checkpoint Form -->
+            <div class="card glass-panel">
+                <h2>Create Checkpoint <span class="tooltip-icon" data-tooltip="Save key session milestones. This amends your last commit, tags it, and pushes it to GitHub for others to see.">ⓘ</span></h2>
+                <p class="panel-desc">Label your current state with a custom commit and tag</p>
+                <form id="checkpoint-form" class="checkpoint-form">
+                    <div class="form-group">
+                        <label for="cp-message">Checkpoint Description</label>
+                        <input type="text" id="cp-message" placeholder="What changes did you make?" required disabled>
+                    </div>
+                    <div class="form-group">
+                        <label for="cp-tag">Optional Version Tag</label>
+                        <input type="text" id="cp-tag" placeholder="e.g. v1.0-vocals, scratch-take-1" disabled>
+                    </div>
+                    <button type="submit" id="cp-submit-btn" class="btn btn-primary btn-block" disabled>Publish Checkpoint</button>
+                </form>
+            </div>
+        </section>
+
+        <!-- RIGHT COLUMN: Collaborators & Timeline -->
+        <section class="grid-col col-right">
+            <!-- Collaborator Imports -->
+            <div class="card glass-panel">
+                <h2>Collaborator Imports <span class="tooltip-icon" data-tooltip="Import another branch as a read-only side-file. Open your set in Ableton, expand the side-file, and drag-and-drop tracks.">ⓘ</span></h2>
+                <p class="panel-desc">Import a partner's set as a side-file to merge tracks conflict-free</p>
+                <div id="collab-list" class="collab-list-container">
+                    <p class="loading">Loading remote collaborators...</p>
+                </div>
+            </div>
+
+            <!-- Visual History Timeline -->
+            <div class="card glass-panel timeline-card">
+                <h2>Project Timeline <span class="tooltip-icon" data-tooltip="Color-coded history of auto-saves and checkpoints. Green is you, magenta is collaborators. Star represents milestones.">ⓘ</span></h2>
+                <p class="panel-desc">History of saves and checkpoints across all branches</p>
+                <div id="timeline" class="timeline-container">
+                    <p class="loading">Loading timeline history...</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal: Import Details Instructions -->
+    <div id="import-modal" class="modal-overlay">
+        <div class="modal-content glass-panel">
+            <header class="modal-header">
+                <h2>📦 Import Instructions</h2>
+                <button class="modal-close-btn">&times;</button>
+            </header>
+            <div class="modal-body">
+                <p>Collaborator set has been successfully extracted and decompressed!</p>
+                <div class="file-name-highlight">
+                    <span class="file-label">Imported File:</span>
+                    <strong id="modal-file-name" class="accent-text">project_collab_partner.als</strong>
+                </div>
+                
+                <h3>How to use this in Ableton Live:</h3>
+                <ol class="modal-steps">
+                    <li>Open your main set in Ableton Live.</li>
+                    <li>In Ableton's browser sidebar, click <strong>"Add Folder..."</strong> and select your project directory:
+                        <pre class="path-code" id="modal-project-path">/Users/claywashington/Desktop/Music/project</pre>
+                    </li>
+                    <li>In the Ableton sidebar, locate and expand the imported file: <strong id="modal-file-name-desc">project_collab_partner.als</strong></li>
+                    <li>You will see all of your collaborator's tracks, groups, and master chain.</li>
+                    <li><strong>Drag and drop</strong> any track directly into your current project to merge their work conflict-free!</li>
+                </ol>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary modal-close-btn-ok">Got it</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="/app.js"></script>
+</body>
+</html>
