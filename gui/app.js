@@ -41,7 +41,6 @@ const dom = {
     
     configForm: document.getElementById("config-form"),
     cfgUsername: document.getElementById("cfg-username"),
-    cfgRemote: document.getElementById("cfg-remote"),
     cfgDrive: document.getElementById("cfg-drive"),
     
     importModal: document.getElementById("import-modal"),
@@ -406,7 +405,6 @@ async function fetchConfig() {
     if (!config) return;
     
     dom.cfgUsername.value = config.username || "";
-    dom.cfgRemote.value = config.remote || "";
     dom.cfgDrive.value = config.drive_folder || "";
     dom.cfgMusicDir.value = config.music_dir || "";
 }
@@ -523,7 +521,6 @@ dom.configForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const payload = {
         username: dom.cfgUsername.value.trim(),
-        remote: dom.cfgRemote.value.trim(),
         drive_folder: dom.cfgDrive.value.trim(),
         music_dir: dom.cfgMusicDir.value.trim()
     };

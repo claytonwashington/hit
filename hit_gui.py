@@ -225,7 +225,6 @@ class HITHTTPRequestHandler(BaseHTTPRequestHandler):
         response = {
             "daemon_running": running,
             "username": cfg.get("username"),
-            "global_remote": cfg.get("remote") or "None",
             "drive_folder": cfg.get("drive_folder"),
             "drive_sync_healthy": drive_sync_healthy,
             "music_dir": cfg.get("music_dir"),
@@ -597,8 +596,6 @@ class HITHTTPRequestHandler(BaseHTTPRequestHandler):
         cfg = hit_cli.load_local_config()
         if "username" in data:
             cfg["username"] = data["username"]
-        if "remote" in data:
-            cfg["remote"] = data["remote"]
         if "drive_folder" in data:
             cfg["drive_folder"] = data["drive_folder"]
         if "music_dir" in data:

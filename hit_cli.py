@@ -22,7 +22,6 @@ RESET = "\033[0m"
 def load_local_config():
     default_cfg = {
         "username": "claytonwashington",
-        "remote": "",
         "drive_folder": "HIT_DAW_Shared_Projects",
         "music_dir": os.path.expanduser("~/Desktop/Music")
     }
@@ -162,7 +161,6 @@ def print_status():
         print(f"Daemon:      {RED}STOPPED{RESET}")
         
     print(f"Username:    {cfg.get('username')}")
-    print(f"Global Git Remote: {cfg.get('remote') or 'None (Not configured)'}")
     
     # Active project (from songs.json)
     from hit_sync.config import SONGS_JSON_PATH
@@ -379,7 +377,7 @@ def manage_config(args):
     cfg = load_local_config()
     
     # Check if we should run the interactive wizard (no flags provided)
-    if not (args.username or args.remote or args.drive_folder):
+    if not (args.username or args.drive_folder):
         print(f"{BOLD}HIT Configuration Wizard{RESET}")
         print("Press Enter to keep the current value shown in brackets.\n")
         
@@ -389,15 +387,8 @@ def manage_config(args):
         if user_input:
             cfg["username"] = user_input
             print(f"Username updated to: {GREEN}{user_input}{RESET}")
-            
-        # 2. Git Remote
-        current_remote = cfg.get("remote", "")
-        remote_input = input(f"Git Remote URL [{current_remote or 'None'}]: ").strip()
-        if remote_input:
-            cfg["remote"] = remote_input
-            print(f"Remote Git URL updated to: {GREEN}{remote_input}{RESET}")
                 
-        # 3. Drive Folder
+        # 2. Drive Folder
         current_folder = cfg.get("drive_folder", "HIT_DAW_Shared_Projects")
         folder_input = input(f"Google Drive Shared Folder Name [{current_folder}]: ").strip()
         if folder_input:
@@ -411,10 +402,6 @@ def manage_config(args):
         if args.username:
             cfg["username"] = args.username
             print(f"Username updated to: {GREEN}{args.username}{RESET}")
-            
-        if args.remote:
-            cfg["remote"] = args.remote
-            print(f"Remote Git URL updated to: {GREEN}{args.remote}{RESET}")
                 
         if args.drive_folder:
             cfg["drive_folder"] = args.drive_folder
@@ -424,7 +411,6 @@ def manage_config(args):
     
     print(f"\n{BOLD}Current Configurations:{RESET}")
     print(f"  Username:     {cfg.get('username')}")
-    print(f"  Remote:       {cfg.get('remote') or 'Not configured'}")
     print(f"  Drive Folder: {cfg.get('drive_folder')}")
 
 def manage_checkpoint(message=None, tag=None):
@@ -914,7 +900,6 @@ def main():
     # Config controls
     config_parser = subparsers.add_parser("config", help="Manage settings")
     config_parser.add_argument("--username", help="Set collaborator username")
-    config_parser.add_argument("--remote", help="Set Git remote repository URL")
     config_parser.add_argument("--drive-folder", help="Set custom Google Drive shared folder name")
     
     # Clone and Create controls
