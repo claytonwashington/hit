@@ -982,3 +982,22 @@ input[disabled], select[disabled] {
     filter: drop-shadow(0 0 4px var(--accent-cyan));
 }
 
+/* Badges for Songs List */
+.badge {
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.badge-collab {
+    background-color: rgba(45, 226, 123, 0.08);
+    color: var(--accent-green);
+    border: 1px solid rgba(45, 226, 123, 0.2);
+}
+

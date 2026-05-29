@@ -122,6 +122,9 @@ class HITHTTPRequestHandler(BaseHTTPRequestHandler):
         # API: Select Active Song
         elif self.path == "/api/songs/active":
             self._handle_post_active_song(data)
+        # API: Initialize Git Repo for Song
+        elif self.path == "/api/songs/initialize":
+            self._handle_post_song_init(data)
         # API: Save Config
         elif self.path == "/api/config":
             self._handle_post_config(data)
@@ -349,16 +352,115 @@ class HITHTTPRequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(branches).encode('utf-8'))
 
     def _handle_get_songs(self):
-        from hit_sync.config import SONGS_JSON_PATH
+        import datetime
+        from hit_sync.config import MUSIC_DIR
+        
+        # Retrieve the current active music directory from local config
+        cfg = hit_cli.load_local_config()
+        music_dir = cfg.get("music_dir", MUSIC_DIR)
+        songs_json_path = os.path.join(music_dir, "songs.json")
+        
         songs_data = {"songs": {}, "active_project": "None"}
-        if os.path.exists(SONGS_JSON_PATH):
+        if os.path.exists(songs_json_path):
             try:
-                with open(SONGS_JSON_PATH, "r") as f:
+                with open(songs_json_path, "r") as f:
                     songs_data = json.load(f)
             except Exception:
                 pass
+                
+        # Scan music_dir for Ableton projects
+        modified_songs = False
+        if os.path.exists(music_dir):
+            for entry in os.listdir(music_dir):
+                entry_path = os.path.join(music_dir, entry)
+                if os.path.isdir(entry_path) and not entry.startswith(".") and entry.lower() != "backup":
+                    try:
+                        als_files = [f for f in os.listdir(entry_path) if f.endswith(".als") and "_collab_" not in f]
+                    except Exception:
+                        als_files = []
+                        
+                    if als_files:
+                        # Found an Ableton Live Project!
+                        song_name = entry
+                        if song_name.lower().endswith(" project"):
+                            song_name = song_name[:-8]
+                        
+                        song_name = song_name.strip()
+                        als_rel_path = os.path.join(entry, als_files[0])
+                        
+                        if "songs" not in songs_data:
+                            songs_data["songs"] = {}
+                            
+                        if song_name not in songs_data["songs"]:
+                            songs_data["songs"][song_name] = {
+                                "path": als_rel_path,
+                                "bpm": "120",
+                                "key": "Unknown",
+                                "status": "Idea",
+                                "tags": [],
+                                "last_modified": datetime.date.today().isoformat(),
+                                "notes": "Automatically discovered Ableton project"
+                            }
+                            modified_songs = True
+                            
+        # Write back to songs.json if changes occurred
+        if modified_songs:
+            try:
+                with open(songs_json_path, "w") as f:
+                    json.dump(songs_data, f, indent=2)
+            except Exception as e:
+                print(f"Warning: Could not save updated songs.json: {e}")
+                
+        # Set has_git dynamically to response (not saved to songs.json to keep it clean)
+        for name, song_val in songs_data.get("songs", {}).items():
+            rel_path = song_val.get("path", "")
+            if rel_path:
+                proj_dir = os.path.dirname(rel_path)
+                full_proj_dir = os.path.join(music_dir, proj_dir)
+                song_val["has_git"] = os.path.exists(os.path.join(full_proj_dir, ".git"))
+            else:
+                song_val["has_git"] = False
+
         self._set_headers()
         self.wfile.write(json.dumps(songs_data).encode('utf-8'))
+
+    def _handle_post_song_init(self, data):
+        song_name = data.get("name")
+        if not song_name:
+            self._set_headers(status=400)
+            self.wfile.write(json.dumps({"error": "Song name is required"}).encode('utf-8'))
+            return
+            
+        # Get active music directory
+        cfg = hit_cli.load_local_config()
+        music_dir = cfg.get("music_dir", os.path.expanduser("~/Desktop/Music"))
+        songs_json_path = os.path.join(music_dir, "songs.json")
+        
+        songs_data = {"songs": {}}
+        if os.path.exists(songs_json_path):
+            try:
+                with open(songs_json_path, "r") as f:
+                    songs_data = json.load(f)
+            except Exception:
+                pass
+                
+        song = songs_data.get("songs", {}).get(song_name)
+        if not song:
+            self._set_headers(status=404)
+            self.wfile.write(json.dumps({"error": f"Song '{song_name}' not found in catalog"}).encode('utf-8'))
+            return
+            
+        relative_path = song.get("path")
+        project_folder = os.path.dirname(relative_path) if relative_path else f"{song_name} Project"
+        
+        # Call hit_cli.create_project(project_folder)
+        success, output = run_cli_capture(hit_cli.create_project, project_folder)
+        
+        self._set_headers()
+        self.wfile.write(json.dumps({
+            "success": success,
+            "output": output
+        }).encode('utf-8'))
 
     def _handle_get_config(self):
         cfg = hit_cli.load_local_config()

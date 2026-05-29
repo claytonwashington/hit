@@ -329,7 +329,7 @@ async function fetchSongs() {
     const active = data.active_project || "";
     
     if (Object.keys(songs).length === 0) {
-        dom.songsList.innerHTML = `<p class="empty-state">No songs registered. Add them in ~/Desktop/Music/songs.json</p>`;
+        dom.songsList.innerHTML = `<p class="empty-state">No songs registered. Add Ableton project folders to your music directory.</p>`;
         return;
     }
 
@@ -338,8 +338,16 @@ async function fetchSongs() {
         const isActive = name === active;
         return `
             <div class="song-item ${isActive ? 'active' : ''}" data-name="${name}">
-                <div class="song-name">${name}</div>
-                <div class="song-meta">${isActive ? 'Active' : `BPM: ${song.bpm}`}</div>
+                <div class="song-info">
+                    <div class="song-name">${name}</div>
+                    <div class="song-meta">${isActive ? 'Active' : `BPM: ${song.bpm}`}</div>
+                </div>
+                <div class="song-actions">
+                    ${song.has_git ? 
+                        `<span class="badge badge-collab">🔗 Collab</span>` : 
+                        `<button class="btn btn-sm btn-outline init-git-btn" data-name="${name}">Init Git</button>`
+                    }
+                </div>
             </div>
         `;
     }).join("");
@@ -360,6 +368,33 @@ async function fetchSongs() {
                 await fetchBranches();
                 await fetchHistory();
                 await fetchSongs();
+            }
+        });
+    });
+
+    // Wire click handlers for song Git initialization
+    document.querySelectorAll(".init-git-btn").forEach(btn => {
+        btn.addEventListener("click", async (e) => {
+            e.stopPropagation(); // Prevents setting active song on click
+            const songName = e.currentTarget.getAttribute("data-name");
+            
+            btn.disabled = true;
+            btn.textContent = "Initing...";
+            showToast(`Initializing collaborative repo for '${songName}'...`, "info");
+            
+            const res = await apiCall("/api/songs/initialize", "POST", { name: songName });
+            
+            btn.disabled = false;
+            btn.textContent = "Init Git";
+            
+            if (res && res.success) {
+                showToast(`Collaborative Git repository initialized for '${songName}'!`, "success");
+                await fetchStatus();
+                await fetchBranches();
+                await fetchHistory();
+                await fetchSongs();
+            } else {
+                showToast(res ? res.output : "Initialization failed", "error");
             }
         });
     });
