@@ -367,8 +367,16 @@ class HITHTTPRequestHandler(BaseHTTPRequestHandler):
             except Exception:
                 pass
                 
-        # Scan music_dir for Ableton projects
+        # Clean up any legacy import sets containing '_collab_' from songs_data
         modified_songs = False
+        if "songs" in songs_data:
+            keys_to_remove = [k for k, v in songs_data["songs"].items() if "_collab_" in k or "_collab_" in v.get("path", "")]
+            if keys_to_remove:
+                for k in keys_to_remove:
+                    del songs_data["songs"][k]
+                modified_songs = True
+                
+        # Scan music_dir for Ableton projects
         if os.path.exists(music_dir):
             for entry in os.listdir(music_dir):
                 entry_path = os.path.join(music_dir, entry)
