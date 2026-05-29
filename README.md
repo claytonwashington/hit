@@ -139,22 +139,28 @@ Here is the exact sequence of steps to create and share a collaborative song.
 
 ### Workflow A: For You (The Creator)
 
-1. **Create and Save**: Open Ableton Live, record your ideas, and save the project inside your music folder, e.g., `~/Desktop/Music/My_New_Song Project/My_New_Song.als`.
+1. **Create and Save**: Open Ableton Live, record your ideas, and save the project inside your music projects folder, e.g., `~/Desktop/Music/My_New_Song Project/My_New_Song.als`.
 2. **Collect Audio Assets**: Run **"Collect All and Save"** from Ableton's menu. This copies all external audio recordings and samples into the project's local `Samples/` folder.
 3. **Publish to GitHub**: Turn the project directory into a collaborative HIT repository:
-   ```bash
-   hit create "My_New_Song Project"
-   ```
-   *This initializes Git, creates a private repository on your GitHub account (`claytonwashington`) using the `gh` CLI, and pushes the XML data.*
+   * **Option A: Web GUI (Recommended)**: Refresh the Songs Catalog list on the dashboard, find your new song, and click the **Init Git** button.
+   * **Option B: CLI**: Run:
+     ```bash
+     hit create "My_New_Song Project"
+     ```
+     *This initializes Git, creates a private repository on your GitHub account, and pushes the XML data.*
 4. **Set Active**: Mark the song as active in your catalog:
-   ```bash
-   songs active "My_New_Song"
-   ```
+   * **Option A: Web GUI (Recommended)**: Click the song name card in the **Songs Catalog** list.
+   * **Option B: CLI**: Run:
+     ```bash
+     songs active "My_New_Song"
+     ```
 5. **Start Daemon**: Launch the sync runner:
-   ```bash
-   hit start
-   ```
-   *The daemon will automatically scan the project and upload the audio assets to your 35TB Google Drive.*
+   * **Option A: Web GUI (Recommended)**: Click the **Start Daemon** button in the header.
+   * **Option B: CLI**: Run:
+     ```bash
+     hit start
+     ```
+     *The daemon will automatically scan the project and upload the audio assets to your 35TB Google Drive.*
 
 ---
 
@@ -167,15 +173,19 @@ Once you send them the clone repository link:
    hit clone git@github.com:claytonwashington/My_New_Song.git
    ```
    *This clones the project directory into their music folder, sets up local Git filters, and registers it in their catalog.*
-2. **Set Active**: They mark the song as active:
-   ```bash
-   songs active "My_New_Song"
-   ```
+2. **Set Active**:
+   * **Option A: Web GUI (Recommended)**: Open the dashboard and click the newly cloned song card in the **Songs Catalog** to activate it.
+   * **Option B: CLI**: Run:
+     ```bash
+     songs active "My_New_Song"
+     ```
 3. **Start Daemon**: Start syncing:
-   ```bash
-   hit start
-   ```
-   *Their background process will pull the XML and automatically download all missing audio stems from your shared 35TB Google Drive.*
+   * **Option A: Web GUI (Recommended)**: Click the **Start Daemon** button in the header.
+   * **Option B: CLI**: Run:
+     ```bash
+     hit start
+     ```
+     *Their background process will pull the XML and automatically download all missing audio stems from your shared 35TB Google Drive.*
 4. **Open and Play**: They double-click the local `.als` file. Ableton opens it instantly, finds all audio stems ready to play, and they are ready to edit!
 
 ---
@@ -184,16 +194,17 @@ Once you send them the clone repository link:
 
 By default, the HIT daemon automatically commits every Ableton save with a generic `[HIT Sync] ...` message. If you want to label a specific state (e.g. you finished a mix or want to mark a milestone), you can create a **Checkpoint**:
 
-```bash
-hit checkpoint
-```
+* **Option A: Web GUI (Recommended)**: Fill out the description and optional tag fields in the **Create Checkpoint** form card and click **Publish Checkpoint**.
+* **Option B: CLI**: Run:
+  ```bash
+  hit checkpoint
+  ```
+  *This prompts you to enter a description (which amends the daemon's last commit message) and an optional tag.*
 
-*   **Interactive Prompts**: You will be prompted to enter a description (which will replace/amend the daemon's last auto-save commit message) and an optional version tag (e.g., `v1.0` or `draft-mix`).
-*   **Command Line Flags**: You can also run it non-interactively using flags:
-    ```bash
-    hit checkpoint -m "Finalized vocal arrangement" -t "v1.1"
-    ```
-*   **Force-Push and Publish**: The CLI automatically force-pushes the updated commit history and tag to GitHub in a single step so it is visible to your collaborator.
+You can also run it non-interactively in the CLI:
+```bash
+hit checkpoint -m "Finalized vocal arrangement" -t "v1.1"
+```
 
 ---
 
@@ -206,6 +217,11 @@ HIT supports collaborating across different Google Accounts using standard **Goo
 2. The first time the daemon runs, it will create a folder named **`HIT_DAW_Shared_Projects`** (or whatever name you set during config).
 3. Right-click that folder, click **Share**, and enter your collaborator's email address.
 4. Set their permission level to **Editor** and click Send.
+5. **GCP Console Test Users**: Since the Google Cloud OAuth app is in "Testing" mode by default, the owner must add the collaborator's Google email address as a **Test User** in the Google Cloud Console:
+   - Go to the [Google Cloud Console](https://console.cloud.google.com/).
+   - Navigate to **APIs & Services** -> **OAuth Consent Screen**.
+   - Scroll down to the **Test Users** section.
+   - Click **Add Users**, input their Google Account email address, and click **Save**.
 
 > [!TIP]
 > **Quota Benefits**: Under Google Drive's sharing structure, files uploaded to a shared folder count against the **Folder Owner's** storage quota (Clay's 35TB). This means your collaborator can upload unlimited heavy audio stems/samples without needing their own paid Google subscription!
@@ -215,11 +231,11 @@ Once the collaborator accepts the shared folder invitation, they must configure 
 
 1. Clone the repository and install dependencies.
 2. Place their own desktop API credentials at `~/.credentials/google_drive_hit.json`.
-3. Run the interactive setup wizard:
+3. Run the interactive setup wizard (or configure it via the Web GUI settings pane):
    ```bash
    hit config
    ```
-4. Set their own username, paste your shared Git remote URL, and enter the **exact name of the shared folder** (e.g., `HIT_DAW_Shared_Projects`) when prompted.
+4. Set their own username, shared Google Drive folder name, and music projects path.
 5. Authenticate via their browser:
    ```bash
    hit sync
