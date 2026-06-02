@@ -50,10 +50,7 @@
                     <span class="label">Lock State:</span>
                     <span id="lock-badge" class="lock-badge unlocked">🔓 Unlocked</span>
                 </div>
-                <div class="collab-share-section" id="collab-share-container" style="display: none;">
-                    <span class="label">Quick Share with Crew:</span>
-                    <div id="friend-buttons-bank" class="friend-buttons-bank"></div>
-                </div>
+
                 <div class="card-actions">
                     <button id="lock-btn" class="btn btn-primary" disabled>Lock Project</button>
                     <button id="sync-btn" class="btn btn-secondary" disabled>Sync Now</button>
@@ -81,15 +78,13 @@
                         <label for="cfg-drive">Google Drive Shared Folder</label>
                         <input type="text" id="cfg-drive" placeholder="HIT_DAW_Shared_Projects" required>
                     </div>
-                    <div class="form-group">
-                        <label for="cfg-friends">Collaborator Crew (GitHub Usernames, Comma-separated)</label>
-                        <input type="text" id="cfg-friends" placeholder="e.g. nik, dave, sarah">
-                    </div>
+
                     <div class="form-group">
                         <label for="cfg-music-dir">Music Projects Folder</label>
                         <input type="text" id="cfg-music-dir" placeholder="e.g. ~/Desktop/Music" required>
                     </div>
                     <button type="submit" class="btn btn-secondary btn-block">Save Configuration</button>
+                    <button type="button" id="open-wizard-btn" class="btn btn-sm btn-outline btn-block" style="margin-top: 0.8rem; width: 100%;">Run Setup Wizard</button>
                 </form>
             </div>
         </section>
@@ -170,16 +165,143 @@
                 </div>
             </div>
 
+            <!-- Friends List -->
+            <div class="card glass-panel">
+                <h2>Friends List <span class="tooltip-icon" data-tooltip="Manage your crew and invite them to collaborate on the active song. Add new friends with an alias and their GitHub username.">ⓘ</span></h2>
+                <p class="panel-desc">Add friends and click 'Share' to invite them to the active song repo</p>
+                <div class="add-friend-form">
+                    <input type="text" id="friend-alias" placeholder="Alias (e.g. Nik)" required>
+                    <input type="text" id="friend-username" placeholder="Username (e.g. nik)" required>
+                    <button id="add-friend-btn" class="btn btn-sm btn-secondary">Add</button>
+                </div>
+                <div id="friends-list" class="friends-list-container">
+                    <p class="loading">Loading friends list...</p>
+                </div>
+            </div>
+
             <!-- Visual History Timeline -->
             <div class="card glass-panel timeline-card">
                 <h2>Project Timeline <span class="tooltip-icon" data-tooltip="Color-coded history of auto-saves and checkpoints. Green is you, magenta is collaborators. Star represents milestones.">ⓘ</span></h2>
                 <p class="panel-desc">History of saves and checkpoints across all branches</p>
-                <div id="timeline" class="timeline-container">
-                    <p class="loading">Loading timeline history...</p>
+                <div class="timeline-scroll-wrapper">
+                    <div id="timeline" class="timeline-container">
+                        <p class="loading">Loading timeline history...</p>
+                    </div>
                 </div>
             </div>
         </section>
     </main>
+
+    <!-- Modal: Onboarding/Setup Wizard -->
+    <div id="setup-wizard-modal" class="modal-overlay">
+        <div class="modal-content glass-panel" style="max-width: 550px;">
+            <header class="modal-header">
+                <h2>⚡ HIT Onboarding Wizard</h2>
+            </header>
+            <div class="modal-body" style="display: flex; flex-direction: column; gap: 1rem;">
+                <!-- Step Indicator -->
+                <div class="wizard-steps-indicator">
+                    <div class="step-indicator-node active" data-step="1">1</div>
+                    <div class="step-indicator-line"></div>
+                    <div class="step-indicator-node" data-step="2">2</div>
+                    <div class="step-indicator-line"></div>
+                    <div class="step-indicator-node" data-step="3">3</div>
+                </div>
+
+                <!-- Step 1: User Profile -->
+                <div class="wizard-step-pane active" id="wizard-step-1">
+                    <h3>Step 1: Your Profile</h3>
+                    <p class="panel-desc" style="margin-bottom: 1.5rem;">Configure your collaborator name and local directory preferences.</p>
+                    
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label for="wizard-username">Collaborator Name (GitHub username or alias)</label>
+                        <input type="text" id="wizard-username" placeholder="e.g. clay" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label for="wizard-music-dir">Music Projects Directory</label>
+                        <input type="text" id="wizard-music-dir" placeholder="e.g. ~/Desktop/Music" required>
+                        <small class="helper-text" style="color: var(--text-muted);">Where all Ableton songs are scanned and cloned</small>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 1.5rem;">
+                        <label for="wizard-drive-folder">Google Drive Shared Folder Name</label>
+                        <input type="text" id="wizard-drive-folder" placeholder="HIT_DAW_Shared_Projects" required>
+                        <small class="helper-text" style="color: var(--text-muted);">Must match the shared folder name exactly</small>
+                    </div>
+                </div>
+
+                <!-- Step 2: Google Drive Auth -->
+                <div class="wizard-step-pane" id="wizard-step-2" style="display: none;">
+                    <h3>Step 2: Google Drive Integration</h3>
+                    <p class="panel-desc" style="margin-bottom: 1.2rem;">Drop in your client credentials file and OAuth token for file synchronization.</p>
+                    
+                    <div class="auth-file-status-box" style="margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 0.8rem;">
+                        <div class="file-status-row">
+                            <span class="status-indicator" id="wiz-gdrive-creds-indicator">🔴 Credentials Missing</span>
+                            <span class="file-desc">google_drive_hit.json</span>
+                        </div>
+                        <div class="file-status-row">
+                            <span class="status-indicator" id="wiz-gdrive-token-indicator">🔴 Access Token Missing</span>
+                            <span class="file-desc">token.json</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 1.2rem;">
+                        <label>Drag & Drop or Select Credentials Files</label>
+                        <p class="helper-text" style="color: var(--text-muted); margin-bottom: 0.5rem;">Upload the files Clayton sent you (`google_drive_hit.json` and/or `token.json`):</p>
+                        
+                        <div class="file-upload-cards-container" style="display: flex; gap: 1rem;">
+                            <div class="file-upload-card" id="upload-creds-card">
+                                <span class="upload-icon">🔑</span>
+                                <span class="upload-label">Client Secrets</span>
+                                <input type="file" id="upload-gdrive-creds" accept=".json" style="display: none;">
+                                <button type="button" class="btn btn-xs btn-outline" onclick="document.getElementById('upload-gdrive-creds').click()">Choose File</button>
+                            </div>
+                            <div class="file-upload-card" id="upload-token-card">
+                                <span class="upload-icon">🎫</span>
+                                <span class="upload-label">OAuth Token</span>
+                                <input type="file" id="upload-gdrive-token" accept=".json" style="display: none;">
+                                <button type="button" class="btn btn-xs btn-outline" onclick="document.getElementById('upload-gdrive-token').click()">Choose File</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="divider" style="margin: 1.5rem 0; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; color: var(--text-muted); border-bottom: 1px solid var(--panel-border); line-height: 0.1em;"><span style="background: var(--bg-dark); padding: 0 10px;">OR AUTHENTICATE FRESH</span></div>
+
+                    <div style="text-align: center; margin-bottom: 0.5rem;">
+                        <button type="button" id="wiz-gdrive-auth-btn" class="btn btn-secondary btn-block">Login with Google Account</button>
+                        <small class="helper-text" style="color: var(--text-muted); display: block; margin-top: 0.4rem;">Requires client secrets file uploaded first. Will open browser authentication.</small>
+                    </div>
+                </div>
+
+                <!-- Step 3: GitHub Authentication -->
+                <div class="wizard-step-pane" id="wizard-step-3" style="display: none;">
+                    <h3>Step 3: GitHub Integration</h3>
+                    <p class="panel-desc" style="margin-bottom: 1.5rem;">Collaborators must authenticate their GitHub CLI to push changes and manage repo settings.</p>
+                    
+                    <div class="auth-file-status-box" style="margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 0.8rem;">
+                        <div class="file-status-row">
+                            <span class="status-indicator" id="wiz-github-indicator">🔴 GitHub CLI: Not Authenticated</span>
+                        </div>
+                    </div>
+
+                    <div class="setup-instructions-box glass-panel" style="padding: 1.2rem; margin-bottom: 1.5rem; background: rgba(0,0,0,0.3); border-radius: 8px;">
+                        <p style="font-size: 0.9rem; line-height: 1.4; margin-bottom: 0.8rem;">To authorize your machine to publish and switch branches, open your terminal and run:</p>
+                        <pre class="path-code" style="padding: 0.6rem 0.8rem; background: var(--bg-dark); color: var(--accent-cyan); font-family: 'Space Mono', monospace; font-size: 0.9rem; border-radius: 4px; overflow-x: auto; border: 1px solid var(--panel-border);">gh auth login</pre>
+                        <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.8rem; line-height: 1.4;">Follow the prompts in your terminal, then return here and click "Verify GitHub Connection".</p>
+                    </div>
+
+                    <button type="button" id="wiz-github-verify-btn" class="btn btn-secondary btn-block">Verify GitHub Connection</button>
+                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem;">
+                <button type="button" id="wizard-prev-btn" class="btn btn-secondary" style="visibility: hidden;">Back</button>
+                <div class="wizard-nav-right" style="display: flex; gap: 0.8rem;">
+                    <button type="button" id="wizard-skip-btn" class="btn btn-outline">Skip Wizard</button>
+                    <button type="button" id="wizard-next-btn" class="btn btn-primary">Next Step</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Modal: Import Details Instructions -->
     <div id="import-modal" class="modal-overlay">
@@ -214,6 +336,66 @@
 
     <!-- Toast Notification Container -->
     <div id="toast-container" class="toast-container"></div>
+
+    <!-- Theme Palette Trigger Button -->
+    <button id="theme-toggle-btn" class="theme-toggle-btn" title="Customize Colors">🎨</button>
+
+    <!-- Theme Settings Sidebar Drawer -->
+    <div id="theme-sidebar" class="theme-sidebar glass-panel">
+        <header class="theme-sidebar-header">
+            <h2>🎨 Theme Customizer</h2>
+            <button id="theme-sidebar-close" class="theme-sidebar-close">&times;</button>
+        </header>
+        <p class="panel-desc">Customize neon colors and background in real-time.</p>
+        
+        <div class="theme-option-group">
+            <label for="color-bg-dark">Background Color</label>
+            <div class="color-picker-wrapper">
+                <input type="color" id="color-bg-dark" value="#0a0c10">
+                <span class="color-hex">#0A0C10</span>
+            </div>
+        </div>
+        <div class="theme-option-group">
+            <label for="color-accent-cyan">Primary Cyan Accent</label>
+            <div class="color-picker-wrapper">
+                <input type="color" id="color-accent-cyan" value="#00d8f6">
+                <span class="color-hex">#00D8F6</span>
+            </div>
+        </div>
+        <div class="theme-option-group">
+            <label for="color-accent-green">Success Green Accent</label>
+            <div class="color-picker-wrapper">
+                <input type="color" id="color-accent-green" value="#2de27b">
+                <span class="color-hex">#2DE27B</span>
+            </div>
+        </div>
+        <div class="theme-option-group">
+            <label for="color-accent-magenta">Error Magenta Accent</label>
+            <div class="color-picker-wrapper">
+                <input type="color" id="color-accent-magenta" value="#ff007f">
+                <span class="color-hex">#FF007F</span>
+            </div>
+        </div>
+        <div class="theme-option-group">
+            <label for="color-accent-yellow">Milestone Yellow Accent</label>
+            <div class="color-picker-wrapper">
+                <input type="color" id="color-accent-yellow" value="#ffc83b">
+                <span class="color-hex">#FFC83B</span>
+            </div>
+        </div>
+        
+        <div class="theme-presets-section">
+            <h3>Presets</h3>
+            <div class="theme-presets-grid">
+                <button class="preset-btn" data-preset="cyberpunk">Cyberpunk</button>
+                <button class="preset-btn" data-preset="matrix">Matrix</button>
+                <button class="preset-btn" data-preset="synthwave">Synthwave</button>
+                <button class="preset-btn" data-preset="ocean">Ocean</button>
+            </div>
+        </div>
+        
+        <button id="theme-reset-btn" class="btn btn-secondary btn-block">Reset to Defaults</button>
+    </div>
 
     <script src="/app.js"></script>
 </body>

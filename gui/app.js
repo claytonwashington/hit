@@ -51,9 +51,10 @@ const dom = {
     cfgMusicDir: document.getElementById("cfg-music-dir"),
     quickstartToggle: document.getElementById("quickstart-toggle"),
     quickstartBody: document.getElementById("quickstart-body"),
-    cfgFriends: document.getElementById("cfg-friends"),
-    collabShareContainer: document.getElementById("collab-share-container"),
-    friendButtonsBank: document.getElementById("friend-buttons-bank")
+    friendsList: document.getElementById("friends-list"),
+    friendAlias: document.getElementById("friend-alias"),
+    friendUsername: document.getElementById("friend-username"),
+    addFriendBtn: document.getElementById("add-friend-btn")
 };
 
 // Toast Notifications Helper
@@ -174,44 +175,8 @@ async function fetchStatus() {
             dom.lockBtn.className = "btn btn-primary";
         }
 
-        // Render Quick Share with Crew buttons
-        if (state.activeSong && state.activeSong !== "None" && state.hasGit) {
-            dom.collabShareContainer.style.display = "block";
-            const friends = data.friends || [];
-            if (friends.length === 0) {
-                dom.friendButtonsBank.innerHTML = `<small class="helper-text">Add friends in Global Settings bank</small>`;
-            } else {
-                dom.friendButtonsBank.innerHTML = friends.map(friend => 
-                    `<button class="btn btn-sm btn-outline share-friend-btn" data-username="${friend}">+ ${friend}</button>`
-                ).join("");
-                
-                // Wire click handlers for quick sharing
-                document.querySelectorAll(".share-friend-btn").forEach(btn => {
-                    btn.addEventListener("click", async (e) => {
-                        e.stopPropagation();
-                        const friend = e.currentTarget.getAttribute("data-username");
-                        const originalText = btn.textContent;
-                        
-                        btn.disabled = true;
-                        btn.textContent = "Sharing...";
-                        showToast(`Inviting ${friend} to '${state.activeSong}' repo...`, "info");
-                        
-                        const res = await apiCall("/api/songs/share", "POST", { name: state.activeSong, collaborator: friend });
-                        
-                        btn.disabled = false;
-                        btn.textContent = originalText;
-                        
-                        if (res && res.success) {
-                            showToast(res.output, "success");
-                        } else {
-                            showToast(res ? res.output : "Failed to invite collaborator", "error");
-                        }
-                    });
-                });
-            }
-        } else {
-            dom.collabShareContainer.style.display = "none";
-        }
+        // Render Friends List
+        renderFriends(data.friends || {});
     } else {
         dom.songTitle.textContent = "No Song Active";
         dom.songPathText.textContent = "Please select or register a song project.";
@@ -449,7 +414,6 @@ async function fetchConfig() {
     dom.cfgUsername.value = config.username || "";
     dom.cfgDrive.value = config.drive_folder || "";
     dom.cfgMusicDir.value = config.music_dir || "";
-    dom.cfgFriends.value = (config.friends || []).join(", ");
 }
 
 // --- Event Listeners Setup ---
@@ -562,11 +526,16 @@ document.getElementById("checkpoint-form").addEventListener("submit", async (e) 
 // Save Settings Config Form
 dom.configForm.addEventListener("submit", async (e) => {
     e.preventDefault();
+    
+    // Fetch the current config to keep the friends dictionary intact
+    const config = await apiCall("/api/config");
+    const currentFriends = config ? (config.friends || {}) : {};
+    
     const payload = {
         username: dom.cfgUsername.value.trim(),
         drive_folder: dom.cfgDrive.value.trim(),
         music_dir: dom.cfgMusicDir.value.trim(),
-        friends: dom.cfgFriends.value.split(",").map(f => f.trim()).filter(f => f)
+        friends: currentFriends
     };
     
     const res = await apiCall("/api/config", "POST", payload);
@@ -605,17 +574,600 @@ if (dom.quickstartToggle && dom.quickstartBody) {
         localStorage.setItem("quickstart_collapsed", isCollapsed.toString());
     });
 }
+// Render Friends List
+function renderFriends(friends) {
+    let hasFriends = false;
+    let itemsHtml = "";
+    
+    // Normalize friends to object format
+    let friendsObj = {};
+    if (Array.isArray(friends)) {
+        friends.forEach(f => {
+            friendsObj[f] = f;
+        });
+    } else if (typeof friends === 'object') {
+        friendsObj = friends;
+    }
+    
+    const entries = Object.entries(friendsObj);
+    if (entries.length > 0) {
+        hasFriends = true;
+        const isSongActive = state.activeSong && state.activeSong !== "None" && state.hasGit;
+        
+        itemsHtml = entries.map(([alias, username]) => {
+            const shareBtnDisabled = isSongActive ? "" : "disabled";
+            const shareBtnClass = isSongActive ? "btn-secondary" : "btn-outline";
+            return `
+                <div class="friend-item">
+                    <div class="friend-info">
+                        <span class="friend-name">${alias}</span>
+                        <span class="friend-username-sub">@${username}</span>
+                    </div>
+                    <div class="friend-actions">
+                        <button class="btn btn-xs ${shareBtnClass} friend-share-btn" data-username="${username}" data-alias="${alias}" ${shareBtnDisabled}>
+                            Share Song
+                        </button>
+                        <button class="friend-remove-btn" data-alias="${alias}" title="Remove Friend">
+                            &times;
+                        </button>
+                    </div>
+                </div>
+            `;
+        }).join("");
+    }
+    
+    if (!hasFriends) {
+        dom.friendsList.innerHTML = `<small class="helper-text">No friends added yet. Add them above!</small>`;
+    } else {
+        dom.friendsList.innerHTML = itemsHtml;
+        
+        // Wire Share Song buttons
+        document.querySelectorAll(".friend-share-btn").forEach(btn => {
+            btn.addEventListener("click", async (e) => {
+                e.stopPropagation();
+                const username = btn.getAttribute("data-username");
+                const alias = btn.getAttribute("data-alias");
+                const originalText = btn.textContent;
+                
+                btn.disabled = true;
+                btn.textContent = "Sharing...";
+                showToast(`Inviting ${alias} (${username}) to '${state.activeSong}' repo...`, "info");
+                
+                const res = await apiCall("/api/songs/share", "POST", { name: state.activeSong, collaborator: username });
+                
+                btn.disabled = false;
+                btn.textContent = originalText;
+                
+                if (res && res.success) {
+                    showToast(`Invitation sent to ${alias} (${username}) successfully!`, "success");
+                } else {
+                    showToast(`Failed to invite ${alias}: ${res ? (res.error || res.output) : "Unknown error"}`, "error");
+                }
+            });
+        });
+        
+        // Wire Remove Friend buttons
+        document.querySelectorAll(".friend-remove-btn").forEach(btn => {
+            btn.addEventListener("click", async (e) => {
+                e.stopPropagation();
+                const alias = btn.getAttribute("data-alias");
+                
+                showToast(`Removing ${alias} from friends...`, "info");
+                
+                // Fetch existing config, delete friend, and POST
+                const config = await apiCall("/api/config");
+                if (config) {
+                    let currentFriends = config.friends || {};
+                    if (Array.isArray(currentFriends)) {
+                        currentFriends = currentFriends.filter(f => f !== alias);
+                    } else if (typeof currentFriends === 'object') {
+                        delete currentFriends[alias];
+                    }
+                    
+                    const payload = {
+                        username: config.username,
+                        drive_folder: config.drive_folder,
+                        music_dir: config.music_dir,
+                        friends: currentFriends
+                    };
+                    
+                    const res = await apiCall("/api/config", "POST", payload);
+                    if (res && res.success) {
+                        showToast(`Removed ${alias} from friends list`, "success");
+                        fetchStatus(); // Refreshes the view
+                    }
+                }
+            });
+        });
+    }
+}
+
+// Add Friend
+dom.addFriendBtn.addEventListener("click", async (e) => {
+    e.preventDefault();
+    const alias = dom.friendAlias.value.trim();
+    const username = dom.friendUsername.value.trim();
+    
+    if (!alias || !username) {
+        showToast("Please enter both alias and username", "error");
+        return;
+    }
+    
+    showToast(`Adding ${alias} to friends...`, "info");
+    
+    // Fetch current config, add new friend, and save
+    const config = await apiCall("/api/config");
+    if (config) {
+        let currentFriends = config.friends || {};
+        
+        // Normalize to object if it was array
+        if (Array.isArray(currentFriends)) {
+            const temp = {};
+            currentFriends.forEach(f => temp[f] = f);
+            currentFriends = temp;
+        } else if (typeof currentFriends !== 'object') {
+            currentFriends = {};
+        }
+        
+        currentFriends[alias] = username;
+        
+        const payload = {
+            username: config.username,
+            drive_folder: config.drive_folder,
+            music_dir: config.music_dir,
+            friends: currentFriends
+        };
+        
+        const res = await apiCall("/api/config", "POST", payload);
+        if (res && res.success) {
+            showToast(`Added ${alias} successfully!`, "success");
+            dom.friendAlias.value = "";
+            dom.friendUsername.value = "";
+            fetchStatus(); // Refreshes status which calls renderFriends
+        }
+    }
+});
+// Theme Customizer Logic
+const themeInputs = {
+    '--bg-dark': document.getElementById("color-bg-dark"),
+    '--accent-cyan': document.getElementById("color-accent-cyan"),
+    '--accent-green': document.getElementById("color-accent-green"),
+    '--accent-magenta': document.getElementById("color-accent-magenta"),
+    '--accent-yellow': document.getElementById("color-accent-yellow")
+};
+
+// Default Theme Values
+const defaultTheme = {
+    '--bg-dark': '#0a0c10',
+    '--accent-cyan': '#00d8f6',
+    '--accent-green': '#2de27b',
+    '--accent-magenta': '#ff007f',
+    '--accent-yellow': '#ffc83b'
+};
+
+// Preset Themes
+const presets = {
+    cyberpunk: {
+        '--bg-dark': '#0f0c1b',
+        '--accent-cyan': '#00f0ff',
+        '--accent-green': '#39ff14',
+        '--accent-magenta': '#ff007f',
+        '--accent-yellow': '#fffb00'
+    },
+    matrix: {
+        '--bg-dark': '#050a05',
+        '--accent-cyan': '#00ff41',
+        '--accent-green': '#00ff41',
+        '--accent-magenta': '#ff3333',
+        '--accent-yellow': '#88ff88'
+    },
+    synthwave: {
+        '--bg-dark': '#1a0b2e',
+        '--accent-cyan': '#ff007f',
+        '--accent-green': '#00f0ff',
+        '--accent-magenta': '#9b5de5',
+        '--accent-yellow': '#f15bb5'
+    },
+    ocean: {
+        '--bg-dark': '#030e1a',
+        '--accent-cyan': '#0077b6',
+        '--accent-green': '#00b4d8',
+        '--accent-magenta': '#90e0ef',
+        '--accent-yellow': '#caf0f8'
+    }
+};
+
+// Helper: Hex to RGBA
+function hexToRgba(hex, alpha) {
+    hex = hex.replace('#', '');
+    if (hex.length === 3) {
+        hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+    }
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+// Apply theme custom property
+function applyThemeProperty(property, hexValue) {
+    document.documentElement.style.setProperty(property, hexValue);
+    
+    // Auto-update dependent glow styles
+    if (property === '--accent-cyan') {
+        document.documentElement.style.setProperty('--accent-cyan-glow', hexToRgba(hexValue, 0.2));
+    } else if (property === '--accent-green') {
+        document.documentElement.style.setProperty('--accent-green-glow', hexToRgba(hexValue, 0.15));
+    } else if (property === '--accent-magenta') {
+        document.documentElement.style.setProperty('--accent-magenta-glow', hexToRgba(hexValue, 0.2));
+    }
+    
+    // Update the visual hex label next to color picker
+    const input = themeInputs[property];
+    if (input) {
+        input.value = hexValue;
+        const hexLabel = input.nextElementSibling;
+        if (hexLabel) hexLabel.textContent = hexValue.toUpperCase();
+    }
+}
+
+// Load and apply saved theme
+function loadSavedTheme() {
+    const saved = localStorage.getItem("custom_theme");
+    let themeObj = {...defaultTheme};
+    if (saved) {
+        try {
+            themeObj = {...defaultTheme, ...JSON.parse(saved)};
+        } catch (e) {}
+    }
+    
+    Object.entries(themeObj).forEach(([prop, val]) => {
+        applyThemeProperty(prop, val);
+    });
+}
+
+// Save current theme state
+function saveCurrentTheme() {
+    const themeObj = {};
+    Object.entries(themeInputs).forEach(([prop, input]) => {
+        if (input) themeObj[prop] = input.value;
+    });
+    localStorage.setItem("custom_theme", JSON.stringify(themeObj));
+}
+
+// Wire Event Listeners for Theme Sidebar
+const themeSidebar = document.getElementById("theme-sidebar");
+const themeToggleBtn = document.getElementById("theme-toggle-btn");
+const themeSidebarClose = document.getElementById("theme-sidebar-close");
+const themeResetBtn = document.getElementById("theme-reset-btn");
+
+if (themeToggleBtn && themeSidebar && themeSidebarClose) {
+    // Open Sidebar
+    themeToggleBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        themeSidebar.classList.toggle("open");
+    });
+    
+    // Close Sidebar
+    themeSidebarClose.addEventListener("click", () => {
+        themeSidebar.classList.remove("open");
+    });
+    
+    // Close Sidebar clicking outside
+    document.addEventListener("click", (e) => {
+        if (!themeSidebar.contains(e.target) && e.target !== themeToggleBtn) {
+            themeSidebar.classList.remove("open");
+        }
+    });
+    
+    // Listen for color changes
+    Object.entries(themeInputs).forEach(([prop, input]) => {
+        if (input) {
+            input.addEventListener("input", (e) => {
+                applyThemeProperty(prop, e.target.value);
+                saveCurrentTheme();
+            });
+        }
+    });
+    
+    // Wire Presets
+    document.querySelectorAll(".preset-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const pName = btn.getAttribute("data-preset");
+            const presetTheme = presets[pName];
+            if (presetTheme) {
+                Object.entries(presetTheme).forEach(([prop, val]) => {
+                    applyThemeProperty(prop, val);
+                });
+                saveCurrentTheme();
+                showToast(`Applied ${pName} theme preset!`, "success");
+            }
+        });
+    });
+    
+    // Reset to defaults
+    if (themeResetBtn) {
+        themeResetBtn.addEventListener("click", () => {
+            Object.entries(defaultTheme).forEach(([prop, val]) => {
+                applyThemeProperty(prop, val);
+            });
+            localStorage.removeItem("custom_theme");
+            showToast("Theme reset to defaults", "info");
+        });
+    }
+}
+
+// --- Setup Wizard Modal Logic ---
+let wizardCurrentStep = 1;
+const wizardModal = document.getElementById("setup-wizard-modal");
+const openWizardBtn = document.getElementById("open-wizard-btn");
+const wizardNextBtn = document.getElementById("wizard-next-btn");
+const wizardPrevBtn = document.getElementById("wizard-prev-btn");
+const wizardSkipBtn = document.getElementById("wizard-skip-btn");
+
+// Form inputs inside wizard
+const wizUsername = document.getElementById("wizard-username");
+const wizMusicDir = document.getElementById("wizard-music-dir");
+const wizDriveFolder = document.getElementById("wizard-drive-folder");
+
+// Upload elements
+const uploadGdriveCreds = document.getElementById("upload-gdrive-creds");
+const uploadGdriveToken = document.getElementById("upload-gdrive-token");
+const wizGdriveAuthBtn = document.getElementById("wiz-gdrive-auth-btn");
+
+// Status rows
+const wizGdriveCredsIndicator = document.getElementById("wiz-gdrive-creds-indicator");
+const wizGdriveTokenIndicator = document.getElementById("wiz-gdrive-token-indicator");
+const wizGithubIndicator = document.getElementById("wiz-github-indicator");
+const wizGithubVerifyBtn = document.getElementById("wiz-github-verify-btn");
+
+// Files uploaded state
+let uploadedCredsContent = null;
+let uploadedTokenContent = null;
+
+function openSetupWizard() {
+    wizardCurrentStep = 1;
+    updateWizardStepUI();
+    
+    // Pre-populate fields with current config/settings
+    wizUsername.value = dom.cfgUsername.value || "";
+    wizMusicDir.value = dom.cfgMusicDir.value || "~/Desktop/Music";
+    wizDriveFolder.value = dom.cfgDrive.value || "HIT_DAW_Shared_Projects";
+    
+    // Check initial files status
+    updateWizardStatusIndicators();
+    
+    wizardModal.classList.add("open");
+}
+
+function closeSetupWizard() {
+    wizardModal.classList.remove("open");
+}
+
+async function updateWizardStatusIndicators() {
+    const statusData = await apiCall("/api/status");
+    if (!statusData) return;
+    
+    // Gdrive Credentials
+    if (statusData.has_gdrive_creds || uploadedCredsContent) {
+        wizGdriveCredsIndicator.textContent = "🟢 Credentials Configured";
+        wizGdriveCredsIndicator.style.color = "var(--accent-green)";
+        document.getElementById("upload-creds-card").classList.add("success");
+        wizGdriveAuthBtn.disabled = false;
+    } else {
+        wizGdriveCredsIndicator.textContent = "🔴 Credentials Missing";
+        wizGdriveCredsIndicator.style.color = "var(--accent-magenta)";
+        document.getElementById("upload-creds-card").classList.remove("success");
+        wizGdriveAuthBtn.disabled = true;
+    }
+    
+    // Gdrive Token
+    if (statusData.has_gdrive_token || uploadedTokenContent) {
+        wizGdriveTokenIndicator.textContent = "🟢 Access Token Configured";
+        wizGdriveTokenIndicator.style.color = "var(--accent-green)";
+        document.getElementById("upload-token-card").classList.add("success");
+    } else {
+        wizGdriveTokenIndicator.textContent = "🔴 Access Token Missing";
+        wizGdriveTokenIndicator.style.color = "var(--accent-magenta)";
+        document.getElementById("upload-token-card").classList.remove("success");
+    }
+    
+    // GitHub CLI Auth status
+    if (statusData.is_gh_auth) {
+        wizGithubIndicator.textContent = "🟢 GitHub CLI: Authenticated";
+        wizGithubIndicator.style.color = "var(--accent-green)";
+    } else {
+        wizGithubIndicator.textContent = "🔴 GitHub CLI: Not Authenticated";
+        wizGithubIndicator.style.color = "var(--accent-magenta)";
+    }
+}
+
+function updateWizardStepUI() {
+    // Hide all step panes
+    document.querySelectorAll(".wizard-step-pane").forEach(pane => {
+        pane.style.display = "none";
+    });
+    
+    // Show current step pane
+    document.getElementById(`wizard-step-${wizardCurrentStep}`).style.display = "block";
+    
+    // Update step indicators
+    document.querySelectorAll(".step-indicator-node").forEach(node => {
+        const stepNum = parseInt(node.getAttribute("data-step"));
+        node.className = "step-indicator-node";
+        if (stepNum === wizardCurrentStep) {
+            node.classList.add("active");
+        } else if (stepNum < wizardCurrentStep) {
+            node.classList.add("completed");
+            node.textContent = "✓";
+        } else {
+            node.textContent = stepNum;
+        }
+    });
+    
+    // Update footer buttons
+    if (wizardCurrentStep === 1) {
+        wizardPrevBtn.style.visibility = "hidden";
+        wizardNextBtn.textContent = "Next Step";
+    } else if (wizardCurrentStep === 3) {
+        wizardPrevBtn.style.visibility = "visible";
+        wizardNextBtn.textContent = "Finish Setup";
+    } else {
+        wizardPrevBtn.style.visibility = "visible";
+        wizardNextBtn.textContent = "Next Step";
+    }
+}
+
+// Handle file loading for GDrive files
+function handleWizardFileSelect(e, type) {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+        try {
+            // Test if it's valid JSON
+            JSON.parse(evt.target.result);
+            if (type === 'creds') {
+                uploadedCredsContent = evt.target.result;
+                showToast("Google credentials file loaded!", "success");
+            } else if (type === 'token') {
+                uploadedTokenContent = evt.target.result;
+                showToast("Google OAuth token loaded!", "success");
+            }
+            updateWizardStatusIndicators();
+        } catch (err) {
+            showToast("Invalid JSON file uploaded.", "error");
+        }
+    };
+    reader.readAsText(file);
+}
+
+// Wire wizard events
+if (openWizardBtn) {
+    openWizardBtn.addEventListener("click", openSetupWizard);
+}
+if (wizardPrevBtn) {
+    wizardPrevBtn.addEventListener("click", () => {
+        if (wizardCurrentStep > 1) {
+            wizardCurrentStep--;
+            updateWizardStepUI();
+        }
+    });
+}
+if (wizardSkipBtn) {
+    wizardSkipBtn.addEventListener("click", closeSetupWizard);
+}
+
+if (uploadGdriveCreds) {
+    uploadGdriveCreds.addEventListener("change", (e) => handleWizardFileSelect(e, 'creds'));
+}
+if (uploadGdriveToken) {
+    uploadGdriveToken.addEventListener("change", (e) => handleWizardFileSelect(e, 'token'));
+}
+
+if (wizGdriveAuthBtn) {
+    wizGdriveAuthBtn.addEventListener("click", async () => {
+        await saveWizardConfig();
+        showToast("Starting Google Drive Auth flow. Please check your browser...", "info");
+        const res = await apiCall("/api/sync", "POST");
+        await updateWizardStatusIndicators();
+    });
+}
+
+if (wizGithubVerifyBtn) {
+    wizGithubVerifyBtn.addEventListener("click", async () => {
+        showToast("Verifying GitHub CLI connection...", "info");
+        await updateWizardStatusIndicators();
+    });
+}
+
+async function saveWizardConfig() {
+    const configData = {
+        username: wizUsername.value.trim(),
+        music_dir: wizMusicDir.value.trim(),
+        drive_folder: wizDriveFolder.value.trim()
+    };
+    await apiCall("/api/config", "POST", configData);
+}
+
+if (wizardNextBtn) {
+    wizardNextBtn.addEventListener("click", async () => {
+        if (wizardCurrentStep === 1) {
+            if (!wizUsername.value.trim()) {
+                showToast("Please enter your collaborator name.", "error");
+                return;
+            }
+            if (!wizMusicDir.value.trim()) {
+                showToast("Please enter your music projects directory.", "error");
+                return;
+            }
+            if (!wizDriveFolder.value.trim()) {
+                showToast("Please enter your Google Drive folder name.", "error");
+                return;
+            }
+            
+            await saveWizardConfig();
+            
+            wizardCurrentStep = 2;
+            updateWizardStepUI();
+        } else if (wizardCurrentStep === 2) {
+            if (uploadedCredsContent || uploadedTokenContent) {
+                showToast("Uploading credentials files...", "info");
+                const uploadRes = await apiCall("/api/setup/upload", "POST", {
+                    "google_drive_hit.json": uploadedCredsContent,
+                    "token.json": uploadedTokenContent
+                });
+                
+                if (uploadRes && uploadRes.success) {
+                    showToast("Credentials files saved successfully!", "success");
+                    uploadedCredsContent = null;
+                    uploadedTokenContent = null;
+                } else {
+                    const errStr = uploadRes ? uploadRes.errors.join(", ") : "Upload failed";
+                    showToast(`Failed to upload files: ${errStr}`, "error");
+                    return;
+                }
+            }
+            
+            wizardCurrentStep = 3;
+            updateWizardStepUI();
+        } else if (wizardCurrentStep === 3) {
+            showToast("Setup Wizard completed successfully!", "success");
+            closeSetupWizard();
+            
+            await fetchStatus();
+            await fetchConfig();
+            await fetchSongs();
+            await fetchBranches();
+            await fetchHistory();
+            
+            const statusData = await apiCall("/api/status");
+            if (statusData && statusData.drive_sync_healthy && !statusData.daemon_running) {
+                showToast("Auto-launching HIT Sync Daemon...", "info");
+                await apiCall("/api/daemon/toggle", "POST");
+                await fetchStatus();
+            }
+        }
+    });
+}
 
 // --- Bootstrapping Execution ---
 async function init() {
-    // 1. Initial fetches
+    loadSavedTheme();
+    
     await fetchStatus();
     await fetchConfig();
     await fetchSongs();
     await fetchBranches();
     await fetchHistory();
     
-    // 2. Set polling intervals
+    // Auto-pop setup wizard if username is default/empty, or drive credentials are missing
+    const statusData = await apiCall("/api/status");
+    if (statusData && (!statusData.username || statusData.username === "claytonwashington" || !statusData.has_gdrive_creds)) {
+        openSetupWizard();
+    }
+    
     setInterval(async () => {
         await fetchStatus();
         await fetchHistory();

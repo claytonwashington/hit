@@ -105,24 +105,23 @@ chmod +x ~/.local/bin/hit
 ```
 *(Ensure `~/.local/bin` is in your shell's `PATH` variable. For example, add `export PATH="$HOME/.local/bin:$PATH"` to your `~/.zshrc` or `~/.bash_profile`).*
 
-### 3. Configure Google Drive API credentials
-Place your downloaded client credentials JSON from Google Cloud Console in the target location:
-```bash
-mv ~/Downloads/client_secret_*.json ~/.credentials/google_drive_hit.json
-```
+### 3. Run the Onboarding Setup Wizard
+You can configure your profile, import credentials files, and verify connections using either the CLI or Web GUI.
 
-### 4. Run the Configuration Wizard
-Initialize your settings by running the interactive setup wizard:
-```bash
-hit config
-```
-*Simply press Enter to accept the defaults, or type in your name, shared Git remote, and Google Drive shared folder name.*
+#### Option A: Web GUI (Easiest)
+1. Launch the dashboard:
+   ```bash
+   hit gui
+   ```
+2. The Web GUI will automatically detect if it is your first time setting up and launch the **HIT Onboarding Wizard**.
+3. It will guide you through profile creation, let you drag-and-drop the `google_drive_hit.json` and `token.json` files sent by your partner, and check your GitHub CLI status.
 
-### 5. Authenticate Google Drive
-Run the credentials authentication flow. This opens a browser tab allowing you to log into your Google Drive:
-```bash
-hit sync
-```
+#### Option B: Terminal CLI
+1. Run the guided setup script:
+   ```bash
+   hit setup
+   ```
+2. Follow the interactive prompts to configure your profile name, projects folder, and import credentials files from your Downloads folder automatically.
 
 ### 6. Launch the Sync Service
 Start the background daemon:
@@ -217,31 +216,21 @@ HIT supports collaborating across different Google Accounts using standard **Goo
 2. The first time the daemon runs, it will create a folder named **`HIT_DAW_Shared_Projects`** (or whatever name you set during config).
 3. Right-click that folder, click **Share**, and enter your collaborator's email address.
 4. Set their permission level to **Editor** and click Send.
-5. **GCP Console Test Users**: Since the Google Cloud OAuth app is in "Testing" mode by default, the owner must add the collaborator's Google email address as a **Test User** in the Google Cloud Console:
-   - Go to the [Google Cloud Console](https://console.cloud.google.com/).
-   - Navigate to **APIs & Services** -> **OAuth Consent Screen**.
-   - Scroll down to the **Test Users** section.
-   - Click **Add Users**, input their Google Account email address, and click **Save**.
+5. **GCP Console Test Users (Production)**: Since the Google Cloud OAuth app is in **Production** mode, any collaborator can authenticate. You do **not** need to manually add them to the "Test Users" list. When they sign in, they will see a warning screen saying "Google hasn't verified this app"; they just need to click **Advanced** -> **Go to [App Name] (unsafe)** to proceed.
 
 > [!TIP]
 > **Quota Benefits**: Under Google Drive's sharing structure, files uploaded to a shared folder count against the **Folder Owner's** storage quota (Clay's 35TB). This means your collaborator can upload unlimited heavy audio stems/samples without needing their own paid Google subscription!
 
 ### Step 2: Collaborator Configures their HIT Client
-Once the collaborator accepts the shared folder invitation, they must configure their daemon to point to the exact same folder name:
+Once the collaborator accepts the shared folder invitation, they must configure their client using the Web GUI or CLI:
 
 1. Clone the repository and install dependencies.
-2. Place their own desktop API credentials at `~/.credentials/google_drive_hit.json`.
-3. Run the interactive setup wizard (or configure it via the Web GUI settings pane):
-   ```bash
-   hit config
-   ```
-4. Set their own username, shared Google Drive folder name, and music projects path.
-5. Authenticate via their browser:
-   ```bash
-   hit sync
-   ```
-6. Start their daemon:
-   ```bash
-   hit start
-   ```
+2. Run the onboarding wizard:
+   * **Option A: Web GUI (Recommended)**: Run `hit gui`. Drag and drop the credentials files (`google_drive_hit.json` and/or `token.json` sent by Clayton) directly into the onboarding wizard, configure their name, and verify connections.
+   * **Option B: CLI**: Run `hit setup` and point it to the folder containing the credentials files Clayton sent them (e.g. `~/Downloads`). It will automatically copy them to `~/.credentials/`.
+3. Start their daemon:
+   * Click **Start Daemon** in the GUI, or run:
+     ```bash
+     hit start
+     ```
    *The collaborator's daemon will now automatically download all your audio stems and sync their saves directly to your shared folder!*

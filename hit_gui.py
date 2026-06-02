@@ -65,7 +65,7 @@ def add_collaborator(song_dir, collaborator_username):
         
     try:
         res = subprocess.run([
-            "/opt/homebrew/bin/gh", "api", "-X", "PUT", 
+            hit_cli.get_gh_executable(), "api", "-X", "PUT", 
             f"/repos/{owner}/{repo}/collaborators/{collaborator_username}"
         ], capture_output=True, text=True)
         
@@ -169,6 +169,9 @@ class HITHTTPRequestHandler(BaseHTTPRequestHandler):
         # API: Save Config
         elif self.path == "/api/config":
             self._handle_post_config(data)
+        # API: Setup Upload
+        elif self.path == "/api/setup/upload":
+            self._handle_post_setup_upload(data)
         # API: Sync
         elif self.path == "/api/sync":
             self._handle_post_sync()
@@ -257,18 +260,30 @@ class HITHTTPRequestHandler(BaseHTTPRequestHandler):
                 lock_owner = None
 
         # Check Google Drive health
-        drive_sync_healthy = False
         from hit_sync.config import GOOGLE_CREDENTIALS_PATH
         token_path = os.path.join(os.path.dirname(GOOGLE_CREDENTIALS_PATH), "token.json")
-        if os.path.exists(GOOGLE_CREDENTIALS_PATH) and os.path.exists(token_path):
-            drive_sync_healthy = True
+        has_gdrive_creds = os.path.exists(GOOGLE_CREDENTIALS_PATH)
+        has_gdrive_token = os.path.exists(token_path)
+        drive_sync_healthy = has_gdrive_creds and has_gdrive_token
+
+        # Check GitHub Auth status
+        is_gh_auth = False
+        try:
+            gh_exec = hit_cli.get_gh_executable()
+            res = subprocess.run([gh_exec, "auth", "status"], capture_output=True, text=True)
+            is_gh_auth = (res.returncode == 0)
+        except Exception:
+            is_gh_auth = False
 
         response = {
             "daemon_running": running,
             "username": cfg.get("username"),
-            "friends": cfg.get("friends", ["nik"]),
+            "friends": cfg.get("friends", {"Nik": "nik"}),
             "drive_folder": cfg.get("drive_folder"),
             "drive_sync_healthy": drive_sync_healthy,
+            "has_gdrive_creds": has_gdrive_creds,
+            "has_gdrive_token": has_gdrive_token,
+            "is_gh_auth": is_gh_auth,
             "music_dir": cfg.get("music_dir"),
             "active_song": active_proj,
             "song_dir": song_dir,
@@ -698,6 +713,44 @@ class HITHTTPRequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(json.dumps({
             "success": True,
             "output": "Configuration saved successfully."
+        }).encode('utf-8'))
+
+    def _handle_post_setup_upload(self, data):
+        from hit_sync.config import GOOGLE_CREDENTIALS_PATH
+        credentials_dir = os.path.dirname(GOOGLE_CREDENTIALS_PATH)
+        os.makedirs(credentials_dir, exist_ok=True)
+        
+        gdrive_hit_content = data.get("google_drive_hit.json")
+        token_content = data.get("token.json")
+        
+        errors = []
+        success = True
+        
+        if gdrive_hit_content:
+            try:
+                # Validate it's valid JSON
+                json_data = json.loads(gdrive_hit_content)
+                with open(GOOGLE_CREDENTIALS_PATH, "w") as f:
+                    json.dump(json_data, f, indent=2)
+            except Exception as e:
+                success = False
+                errors.append(f"Failed to save google_drive_hit.json: {e}")
+                
+        if token_content:
+            try:
+                # Validate it's valid JSON
+                json_data = json.loads(token_content)
+                token_path = os.path.join(credentials_dir, "token.json")
+                with open(token_path, "w") as f:
+                    json.dump(json_data, f, indent=2)
+            except Exception as e:
+                success = False
+                errors.append(f"Failed to save token.json: {e}")
+                
+        self._set_headers()
+        self.wfile.write(json.dumps({
+            "success": success,
+            "errors": errors
         }).encode('utf-8'))
 
     def _handle_post_sync(self):

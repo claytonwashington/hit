@@ -6,6 +6,18 @@ import signal
 import subprocess
 import argparse
 from hit_sync.config import HIT_CONFIG_DIR, SONGS_JSON_PATH
+import shutil
+
+def get_gh_executable():
+    """Find the path to the GitHub CLI (gh) executable."""
+    gh_path = shutil.which("gh")
+    if gh_path:
+        return gh_path
+    for path in ["/opt/homebrew/bin/gh", "/usr/local/bin/gh"]:
+        if os.path.exists(path):
+            return path
+    return "gh"
+
 
 PID_FILE = os.path.join(HIT_CONFIG_DIR, "daemon.pid")
 LOG_FILE = os.path.join(HIT_CONFIG_DIR, "daemon.log")
@@ -24,7 +36,7 @@ def load_local_config():
         "username": "claytonwashington",
         "drive_folder": "HIT_DAW_Shared_Projects",
         "music_dir": os.path.expanduser("~/Desktop/Music"),
-        "friends": ["nik"]
+        "friends": {"Nik": "nik"}
     }
     if os.path.exists(CONFIG_FILE):
         try:
@@ -374,6 +386,62 @@ def manage_branch(branch_name=None):
         except Exception as e:
             print(f"{RED}Failed to switch branch: {e}{RESET}")
 
+def parse_friends_config(friends_str_or_list):
+    """Parses a comma-separated string or list/dict into a normalized dictionary of alias: username."""
+    if isinstance(friends_str_or_list, dict):
+        return friends_str_or_list
+    
+    friends_dict = {}
+    if isinstance(friends_str_or_list, list):
+        for item in friends_str_or_list:
+            item = item.strip()
+            if not item:
+                continue
+            if ":" in item:
+                alias, username = item.split(":", 1)
+                friends_dict[alias.strip()] = username.strip()
+            else:
+                friends_dict[item] = item
+        return friends_dict
+
+    if isinstance(friends_str_or_list, str):
+        for item in friends_str_or_list.split(","):
+            item = item.strip()
+            if not item:
+                continue
+            if ":" in item:
+                alias, username = item.split(":", 1)
+                friends_dict[alias.strip()] = username.strip()
+            else:
+                friends_dict[item] = item
+        return friends_dict
+        
+    return {}
+
+def format_friends_for_display(friends):
+    """Formats the friends dictionary for a user-input prompt or serialization, e.g. alias:username."""
+    if not isinstance(friends, dict):
+        friends = parse_friends_config(friends)
+    parts = []
+    for alias, username in friends.items():
+        if alias == username:
+            parts.append(username)
+        else:
+            parts.append(f"{alias}:{username}")
+    return ", ".join(parts)
+
+def format_friends_for_info(friends):
+    """Formats the friends dictionary for descriptive prints, e.g. alias (username)."""
+    if not isinstance(friends, dict):
+        friends = parse_friends_config(friends)
+    parts = []
+    for alias, username in friends.items():
+        if alias == username:
+            parts.append(username)
+        else:
+            parts.append(f"{alias} ({username})")
+    return ", ".join(parts)
+
 def manage_config(args):
     cfg = load_local_config()
     
@@ -397,11 +465,12 @@ def manage_config(args):
             print(f"Google Drive folder updated to: {GREEN}{folder_input}{RESET}")
             
         # 3. Friends List
-        current_friends = ", ".join(cfg.get("friends", ["nik"]))
-        friends_input = input(f"Collaborator Crew GitHub Usernames (Comma-separated) [{current_friends}]: ").strip()
+        current_friends_dict = cfg.get("friends", {"Nik": "nik"})
+        current_friends_str = format_friends_for_display(current_friends_dict)
+        friends_input = input(f"Collaborator Crew (Alias:Username, Comma-separated) [{current_friends_str}]: ").strip()
         if friends_input:
-            cfg["friends"] = [f.strip() for f in friends_input.split(",") if f.strip()]
-            print(f"Collaborator crew GitHub usernames updated to: {GREEN}{', '.join(cfg['friends'])}{RESET}")
+            cfg["friends"] = parse_friends_config(friends_input)
+            print(f"Collaborator crew updated to: {GREEN}{format_friends_for_info(cfg['friends'])}{RESET}")
             
         save_local_config(cfg)
         print(f"\n{GREEN}✓ Configurations saved successfully!{RESET}")
@@ -416,15 +485,15 @@ def manage_config(args):
             print(f"Google Drive folder updated to: {GREEN}{args.drive_folder}{RESET}")
             
         if args.friends:
-            cfg["friends"] = [f.strip() for f in args.friends.split(",") if f.strip()]
-            print(f"Collaborator crew updated to: {GREEN}{', '.join(cfg['friends'])}{RESET}")
+            cfg["friends"] = parse_friends_config(args.friends)
+            print(f"Collaborator crew updated to: {GREEN}{format_friends_for_info(cfg['friends'])}{RESET}")
             
         save_local_config(cfg)
     
     print(f"\n{BOLD}Current Configurations:{RESET}")
     print(f"  Username:     {cfg.get('username')}")
     print(f"  Drive Folder: {cfg.get('drive_folder')}")
-    print(f"  Crew:         {', '.join(cfg.get('friends', []))}")
+    print(f"  Crew:         {format_friends_for_info(cfg.get('friends', {}))}")
 
 def manage_checkpoint(message=None, tag=None):
     """Amend the last auto-saved commit with a custom message and optionally tag the commit."""
@@ -795,7 +864,16 @@ def clone_project(git_url):
         
     print(f"📥 Cloning song repository: {CYAN}{git_url}{RESET}...")
     try:
-        subprocess.run(["git", "clone", git_url, target_dir], check=True)
+        res = subprocess.run(["git", "clone", git_url, target_dir], capture_output=True, text=True)
+        if res.returncode != 0:
+            if "git@github.com:" in git_url:
+                print(f"{YELLOW}⚠️ SSH clone failed. Retrying with HTTPS URL fallback...{RESET}")
+                parts = git_url.split("git@github.com:")[-1]
+                https_url = f"https://github.com/{parts}"
+                print(f"📥 Cloning song repository: {CYAN}{https_url}{RESET}...")
+                subprocess.run(["git", "clone", https_url, target_dir], check=True)
+            else:
+                raise Exception(res.stderr or "Git clone failed")
         print(f"{GREEN}✓ Cloned successfully into {target_dir}{RESET}")
         
         # Configure Ableton Live Set XML clean/smudge filters inside the cloned repository
@@ -806,7 +884,11 @@ def clone_project(git_url):
         
         # Trigger song manager sync to register the new project in songs.json
         print("📇 Registering project in songs catalog...")
-        subprocess.run([sys.executable, "/Users/claywashington/Desktop/Music/song_manager.py", "sync"], capture_output=True)
+        song_manager_path = os.path.join(MUSIC_DIR, "song_manager.py")
+        if os.path.exists(song_manager_path):
+            subprocess.run([sys.executable, song_manager_path, "sync"], capture_output=True)
+        else:
+            print(f"{YELLOW}Warning: song_manager.py not found at {song_manager_path}. Skipped catalog sync.{RESET}")
         print(f"{GREEN}🎉 Project '{project_name}' is ready! Run 'hit start' to begin collaborating.{RESET}")
     except Exception as e:
         print(f"{RED}❌ Cloning failed: {e}{RESET}")
@@ -847,6 +929,14 @@ def create_project(project_folder):
             f.write("*.tmp\n")
             f.write("* [Crash Recovery] *\n")
             f.write(".DS_Store\n")
+            f.write("\n# Ignore audio assets (synced via Google Drive Sync Engine)\n")
+            f.write("*.wav\n")
+            f.write("*.aif\n")
+            f.write("*.aiff\n")
+            f.write("*.mp3\n")
+            f.write("*.flac\n")
+            f.write("*.m4a\n")
+            f.write("*.ogg\n")
             
         # 5. First commit
         subprocess.run(["git", "add", "."], cwd=target_dir, check=True)
@@ -862,12 +952,14 @@ def create_project(project_folder):
                 raise Exception(f"Git commit failed: {commit_res.stderr or commit_res.stdout}")
         
         # 6. Publish to GitHub using 'gh' CLI
-        print(f"☁️  Publishing private repository to GitHub (claytonwashington)...")
+        cfg = load_local_config()
+        username = cfg.get("username", "unknown")
+        print(f"☁️  Publishing private repository to GitHub ({username})...")
         # Check if remote origin already exists
         remote_check = subprocess.run(["git", "remote", "get-url", "origin"], cwd=target_dir, capture_output=True, text=True)
         if remote_check.returncode != 0:
             subprocess.run(
-                ["/opt/homebrew/bin/gh", "repo", "create", project_folder, "--private", "--source=.", "--push"],
+                [get_gh_executable(), "repo", "create", project_folder, "--private", "--source=.", "--push"],
                 cwd=target_dir, check=True
             )
         else:
@@ -881,7 +973,11 @@ def create_project(project_folder):
         ).strip()
         
         # Trigger song manager sync to register the new project
-        subprocess.run([sys.executable, "/Users/claywashington/Desktop/Music/song_manager.py", "sync"], capture_output=True)
+        song_manager_path = os.path.join(MUSIC_DIR, "song_manager.py")
+        if os.path.exists(song_manager_path):
+            subprocess.run([sys.executable, song_manager_path, "sync"], capture_output=True)
+        else:
+            print(f"{YELLOW}Warning: song_manager.py not found at {song_manager_path}. Skipped catalog sync.{RESET}")
         
         print(f"\n{GREEN}🎉 SUCCESS! Collaborative repository created on GitHub!{RESET}")
         print(f"Share this link with your friends to let them join:")
@@ -890,6 +986,95 @@ def create_project(project_folder):
     except Exception as e:
         print(f"{RED}❌ Project creation failed: {e}{RESET}")
         print(f"{YELLOW}Make sure you are logged in to GitHub CLI by running 'gh auth login' first.{RESET}")
+        raise e
+
+def manage_setup(args=None):
+    """Guided setup script to configure HIT and copy credentials files."""
+    print(f"\n{BOLD}{CYAN}⚡ Welcome to the HIT Collaboration Suite Setup Wizard! ⚡{RESET}")
+    print("This wizard will help you configure your settings and import Google Drive credentials.\n")
+    
+    # 1. Config Settings
+    class DummyArgs:
+        username = None
+        drive_folder = None
+        friends = None
+    manage_config(DummyArgs())
+    
+    print("-" * 50)
+    
+    # 2. Google Drive Credentials Import
+    print(f"\n{BOLD}🔑 Google Drive Credentials Setup:{RESET}")
+    from hit_sync.config import GOOGLE_CREDENTIALS_DIR, GOOGLE_CREDENTIALS_PATH
+    token_path = os.path.join(GOOGLE_CREDENTIALS_DIR, "token.json")
+    
+    has_creds = os.path.exists(GOOGLE_CREDENTIALS_PATH)
+    has_token = os.path.exists(token_path)
+    
+    if has_creds and has_token:
+        print(f"{GREEN}🟢 Google credentials and token are already in place!{RESET}")
+    else:
+        print("To sync large audio assets, you need the Google Cloud credential files.")
+        print("If your project owner sent you these files, please specify the path to the folder containing them.")
+        print("Otherwise, press Enter to skip and configure them manually later.")
+        
+        folder_path = input("\nPath to folder containing credentials/token (e.g. ~/Downloads): ").strip()
+        if folder_path:
+            folder_path = os.path.expanduser(folder_path)
+            if os.path.isdir(folder_path):
+                import shutil
+                copied_any = False
+                
+                # Check for client secret / credentials file
+                cred_src = None
+                for filename in os.listdir(folder_path):
+                    if filename == "google_drive_hit.json":
+                        cred_src = os.path.join(folder_path, filename)
+                        break
+                    elif filename.startswith("client_secret_") and filename.endswith(".json"):
+                        cred_src = os.path.join(folder_path, filename)
+                        break
+                
+                if cred_src:
+                    try:
+                        shutil.copy(cred_src, GOOGLE_CREDENTIALS_PATH)
+                        print(f"{GREEN}✓ Imported Google Drive client credentials to {GOOGLE_CREDENTIALS_PATH}{RESET}")
+                        copied_any = True
+                    except Exception as e:
+                        print(f"{RED}Error copying credentials: {e}{RESET}")
+                
+                # Check for token
+                token_src = os.path.join(folder_path, "token.json")
+                if os.path.exists(token_src):
+                    try:
+                        shutil.copy(token_src, token_path)
+                        print(f"{GREEN}✓ Imported Google Drive OAuth token to {token_path}{RESET}")
+                        copied_any = True
+                    except Exception as e:
+                        print(f"{RED}Error copying token file: {e}{RESET}")
+                
+                if not copied_any:
+                    print(f"{YELLOW}⚠️ No Google credentials (google_drive_hit.json) or token (token.json) found in that directory.{RESET}")
+            else:
+                print(f"{RED}❌ Directory not found: {folder_path}{RESET}")
+                
+    print("-" * 50)
+    
+    # 3. GitHub CLI Auth Check
+    print(f"\n{BOLD}🐙 GitHub CLI Authentication Status:{RESET}")
+    try:
+        gh_exec = get_gh_executable()
+        res = subprocess.run([gh_exec, "auth", "status"], capture_output=True, text=True)
+        if res.returncode == 0:
+            print(f"{GREEN}🟢 GitHub CLI is authenticated!{RESET}")
+        else:
+            print(f"{YELLOW}🟡 GitHub CLI is not authenticated.{RESET}")
+            print(f"To create or share repositories, please run: {CYAN}gh auth login{RESET} in your terminal.")
+    except Exception:
+        print(f"{RED}🔴 GitHub CLI ('gh') is not installed or not in PATH.{RESET}")
+        print("Please install GitHub CLI (e.g. `brew install gh`) and run `gh auth login` first.")
+        
+    print("-" * 50)
+    print(f"\n{GREEN}🎉 Setup check completed! Run {BOLD}hit status{RESET} to verify, and {BOLD}hit start{RESET} to run the daemon.{RESET}\n")
 
 def main():
     parser = argparse.ArgumentParser(description="HIT Ableton Live Sync Manager CLI")
@@ -939,6 +1124,9 @@ def main():
     # GUI controls
     subparsers.add_parser("gui", help="Launch the local Web GUI dashboard")
 
+    # Setup controls
+    subparsers.add_parser("setup", help="Guided terminal wizard to configure HIT and import Google Drive credentials")
+
     args = parser.parse_args()
     
     if args.command == "start":
@@ -970,6 +1158,8 @@ def main():
         manage_import(args.target)
     elif args.command == "gui":
         manage_gui()
+    elif args.command == "setup":
+        manage_setup()
     else:
         parser.print_help()
 
