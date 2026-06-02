@@ -224,6 +224,9 @@ HIT supports collaborating across different Google Accounts using standard **Goo
 ### Step 2: Collaborator Configures their HIT Client
 Once the collaborator accepts the shared folder invitation, they must configure their client using the Web GUI or CLI:
 
+> [!IMPORTANT]
+> **Get Credentials From Clayton:** Before starting, collaborators must contact Clayton (the project owner) to receive the Google Cloud credentials folder containing the client secrets file (`google_drive_hit.json`) and the authenticated OAuth token (`token.json`).
+
 1. Clone the repository and install dependencies.
 2. Run the onboarding wizard:
    * **Option A: Web GUI (Recommended)**: Run `hit gui`. Drag and drop the credentials files (`google_drive_hit.json` and/or `token.json` sent by Clayton) directly into the onboarding wizard, configure their name, and verify connections.
