@@ -72,6 +72,7 @@ hit/
 ├── AGENTS_CLI.md                # Guide for AI tools to interact with the hit CLI
 ├── AGENTS_GCP.md                # Server provisioning guide
 ├── VST_SYNC_SPEC.md             # Third-party VST/AU plugin sync specification
+├── SWARM_ARCH_BLUEPRINT.md      # Distributed audio inversion swarm blueprint
 ├── hit_daemon.py                # Core background sync service
 ├── hit_cli.py                   # Command-line interface implementation
 ├── hit_gui.py                   # Web GUI server backend
